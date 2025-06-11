@@ -161,7 +161,15 @@ class RaydiumApiService {
   async getCLMMPools(limit: number = 100): Promise<any[]> {
     try {
       console.log('Fetching CLMM pools from Raydium...');
-      const response = await v2Api.get('/ammV3/ammPools');
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await v2Api.get('/ammV3/ammPools', {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       
       if (!response.data?.data || !Array.isArray(response.data.data)) {
         console.warn('Invalid CLMM response format');
@@ -176,8 +184,12 @@ class RaydiumApiService {
       
       console.log(`Fetched ${sortedPools.length} CLMM pools`);
       return sortedPools;
-    } catch (error) {
-      console.error('Failed to fetch CLMM pools:', error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error('CLMM pools request timed out');
+      } else {
+        console.error('Failed to fetch CLMM pools:', error);
+      }
       return [];
     }
   }
@@ -186,7 +198,15 @@ class RaydiumApiService {
   async getCPPools(limit: number = 100): Promise<any[]> {
     try {
       console.log('Fetching CP pools from Raydium...');
-      const response = await v2Api.get('/main/pairs');
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for larger dataset
+      
+      const response = await v2Api.get('/main/pairs', {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.warn('Invalid CP pools response format');
@@ -201,8 +221,12 @@ class RaydiumApiService {
       
       console.log(`Fetched ${sortedPools.length} CP pools`);
       return sortedPools;
-    } catch (error) {
-      console.error('Failed to fetch CP pools:', error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error('CP pools request timed out');
+      } else {
+        console.error('Failed to fetch CP pools:', error);
+      }
       return [];
     }
   }
@@ -240,10 +264,13 @@ class RaydiumApiService {
 
       console.log('Fetching fresh Raydium data...');
       
-      // Fetch data from multiple endpoints in parallel
+      // Fetch data from multiple endpoints in parallel with shorter timeout for CLMM
       const [clmmPools, cpPools] = await Promise.allSettled([
-        this.getCLMMPools(limit * 2),
-        this.getCPPools(limit * 2)
+        this.getCLMMPools(limit).catch(error => {
+          console.warn('CLMM pools failed, continuing with CP pools only:', error.message);
+          return [];
+        }),
+        this.getCPPools(limit * 3) // Get more CP pools since they have better data
       ]);
 
       // Convert pools to coins and filter out invalid ones
