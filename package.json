@@ -2,7 +2,7 @@
   "name": "cryptosage",
   "version": "0.1.0",
   "private": true,
-  "comment": "Deployment refresh - 2025-01-06",
+  "comment": "Deployment refresh - 2025-06-11",
   "dependencies": {
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
@@ -29,7 +29,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "update-deployment": "node scripts/update-deployment.js",
+    "predeploy": "npm run update-deployment && npm run build"
   },
   "eslintConfig": {
     "extends": [
