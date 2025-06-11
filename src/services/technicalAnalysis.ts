@@ -622,12 +622,12 @@ export class CryptoAnalyzer {
           try {
             console.log(`TechnicalAnalysis: Analyzing ${coin.name} (${coin.symbol})...`);
             const analysis = await this.analyzeCoin(coin);
-            // Only include analysis if it has valid data (not fallback analysis)
-            if (analysis.signals.length > 0 && !analysis.signals.includes('Analysis Limited')) {
+            // Include all analyses that have valid data (be less strict about filtering)
+            if (analysis.signals.length > 0) {
               analyses.push(analysis);
               console.log(`TechnicalAnalysis: Successfully analyzed ${coin.name}, prediction: ${analysis.predicted24hChange.toFixed(2)}%, recommendation: ${analysis.recommendation}`);
             } else {
-              console.warn(`TechnicalAnalysis: Skipping ${coin.name} due to limited analysis data`);
+              console.warn(`TechnicalAnalysis: Skipping ${coin.name} due to no analysis signals`);
             }
           } catch (error: any) {
             console.warn(`TechnicalAnalysis: Failed to analyze ${coin.name}, skipping:`, error.message);
@@ -649,13 +649,14 @@ export class CryptoAnalyzer {
         }
       }
 
-      // If we still don't have enough analyses, create basic fallback recommendations
-      if (analyses.length < 5) {
-        console.warn(`TechnicalAnalysis: Only ${analyses.length} successful analyses, creating fallback recommendations`);
-        const fallbackCoins = coinsToAnalyze.slice(0, 10);
+      // Ensure we always have exactly 10 recommendations by creating fallback analyses if needed
+      if (analyses.length < 10) {
+        console.warn(`TechnicalAnalysis: Only ${analyses.length} successful analyses, creating fallback recommendations to reach 10`);
+        const fallbackCoins = coinsToAnalyze.slice(0, Math.max(20, coinsToAnalyze.length)); // Use more coins for fallback
         
         for (const coin of fallbackCoins) {
           if (analyses.find(a => a.coin.id === coin.id)) continue; // Skip if already analyzed
+          if (analyses.length >= 10) break; // Stop when we have 10 recommendations
           
           // Create basic analysis based on 24h price change
           const predicted24hChange = coin.price_change_percentage_24h * 0.5; // Conservative prediction
@@ -691,7 +692,7 @@ export class CryptoAnalyzer {
           };
           
           analyses.push(fallbackAnalysis);
-          console.log(`TechnicalAnalysis: Created fallback analysis for ${coin.name}`);
+          console.log(`TechnicalAnalysis: Created fallback analysis for ${coin.name} (${analyses.length}/10)`);
         }
       }
 
@@ -706,19 +707,67 @@ export class CryptoAnalyzer {
         `${a.coin.symbol}: ${a.predicted24hChange.toFixed(2)}% (${a.recommendation})`
       ));
       
-      const finalRecommendations = sortedAnalyses.slice(0, 10);
-      console.log(`TechnicalAnalysis: Returning ${finalRecommendations.length} recommendations`);
+      let finalRecommendations = sortedAnalyses.slice(0, 10);
+      
+      // Final safeguard: if we still don't have 10 recommendations, pad with top market cap coins
+      if (finalRecommendations.length < 10) {
+        console.warn(`TechnicalAnalysis: Still only have ${finalRecommendations.length} recommendations, padding with top market cap coins`);
+        try {
+          const paddingCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 15, 1);
+          const existingCoinIds = new Set(finalRecommendations.map(r => r.coin.id));
+          
+          for (const coin of paddingCoins) {
+            if (finalRecommendations.length >= 10) break;
+            if (existingCoinIds.has(coin.id)) continue;
+            
+            const paddingAnalysis: CryptoAnalysis = {
+              coin,
+              technicalScore: 50,
+              fundamentalScore: 50,
+              sentimentScore: 50,
+              overallScore: 50,
+              indicators: {
+                rsi: 50,
+                macd: { MACD: 0, signal: 0, histogram: 0 },
+                sma20: coin.current_price,
+                sma50: coin.current_price,
+                ema12: coin.current_price,
+                ema26: coin.current_price,
+                bollingerBands: {
+                  upper: coin.current_price * 1.1,
+                  middle: coin.current_price,
+                  lower: coin.current_price * 0.9
+                },
+                stochastic: { k: 50, d: 50 }
+              },
+              signals: ['Market Cap Based'],
+              recommendation: 'NEUTRAL' as const,
+              riskLevel: coin.market_cap_rank <= 10 ? 'LOW' : coin.market_cap_rank <= 50 ? 'MEDIUM' : 'HIGH',
+              priceTarget: coin.current_price,
+              confidence: 40,
+              predicted24hChange: 0
+            };
+            
+            finalRecommendations.push(paddingAnalysis);
+            console.log(`TechnicalAnalysis: Added padding recommendation for ${coin.name} (${finalRecommendations.length}/10)`);
+          }
+        } catch (paddingError) {
+          console.error('TechnicalAnalysis: Failed to add padding recommendations:', paddingError);
+        }
+      }
+      
+      console.log(`TechnicalAnalysis: Returning exactly ${finalRecommendations.length} recommendations`);
       
       return finalRecommendations;
     } catch (error) {
       console.error('TechnicalAnalysis: Error generating recommendations:', error);
       
-      // Last resort fallback - try to get just the top 10 coins and create basic recommendations
+      // Last resort fallback - try to get exactly 10 coins and create basic recommendations
       try {
         console.log('TechnicalAnalysis: Attempting last resort fallback...');
-        const fallbackCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 10, 1);
+        const fallbackCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 15, 1); // Get 15 to ensure we have 10 after any filtering
         
-        const fallbackAnalyses: CryptoAnalysis[] = fallbackCoins.map(coin => {
+        const fallbackAnalyses: CryptoAnalysis[] = fallbackCoins.slice(0, 10).map(coin => {
           const predicted24hChange = coin.price_change_percentage_24h * 0.3; // Very conservative
           const recommendation = predicted24hChange > 2 ? 'LONG' : predicted24hChange < -2 ? 'SHORT' : 'NEUTRAL';
           const overallScore = Math.max(30, Math.min(70, 50 + coin.price_change_percentage_24h));
@@ -752,7 +801,7 @@ export class CryptoAnalyzer {
           };
         });
         
-        console.log(`TechnicalAnalysis: Created ${fallbackAnalyses.length} fallback recommendations`);
+        console.log(`TechnicalAnalysis: Created exactly ${fallbackAnalyses.length} fallback recommendations`);
         return fallbackAnalyses;
       } catch (fallbackError) {
         console.error('TechnicalAnalysis: Even fallback failed:', fallbackError);
