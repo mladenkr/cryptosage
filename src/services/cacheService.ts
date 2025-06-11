@@ -99,6 +99,23 @@ class CacheService {
 
       const data: CachedRecommendations = JSON.parse(cached);
       
+      // Check if this is old mock data by looking for the old $95.50 SOL price
+      // or other indicators of mock data
+      if (data.recommendations && data.recommendations.length > 0) {
+        const hasOldMockData = data.recommendations.some(rec => 
+          (rec.coin.symbol === 'sol' && Math.abs(rec.coin.current_price - 95.50) < 0.01) ||
+          rec.coin.name.includes('(Meteora)') ||
+          rec.signals?.includes('Meteora Fallback Analysis') ||
+          rec.signals?.includes('Meteora DEX Padding')
+        );
+        
+        if (hasOldMockData) {
+          console.log('Detected old mock data in cache, clearing cache to force fresh fetch');
+          this.clearAllData();
+          return null;
+        }
+      }
+      
       // Ensure dates are properly parsed
       data.fetchedAt = new Date(data.fetchedAt);
       data.nextFetchTime = new Date(data.nextFetchTime);
@@ -168,6 +185,21 @@ class CacheService {
       if (!cached) return null;
 
       const data = JSON.parse(cached);
+      
+      // Check if this is old mock data for Meteora coins
+      if (key.includes('meteora_coins') && Array.isArray(data.data)) {
+        const hasOldMockData = data.data.some((coin: any) => 
+          (coin.symbol === 'sol' && Math.abs(coin.current_price - 95.50) < 0.01) ||
+          coin.name?.includes('(Meteora)') ||
+          coin.id?.includes('-meteora')
+        );
+        
+        if (hasOldMockData) {
+          console.log('Detected old mock Meteora data in cache, clearing cache to force fresh fetch');
+          localStorage.removeItem(`${this.MARKET_DATA_KEY}_${key}`);
+          return null;
+        }
+      }
       
       // Parse dates if they exist
       if (data.fetchedAt) data.fetchedAt = new Date(data.fetchedAt);

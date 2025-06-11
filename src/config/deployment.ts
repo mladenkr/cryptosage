@@ -3,12 +3,12 @@
 
 export const DEPLOYMENT_CONFIG = {
   // Update this timestamp with each deployment to force cache refresh
-  deploymentTimestamp: 1749659887757,
-  deploymentVersion: '1.0.0',
-  deploymentDate: '2025-06-11T16:38:07.757Z',
+  deploymentTimestamp: Date.now(),
+  deploymentVersion: '1.1.0',
+  deploymentDate: new Date().toISOString(),
   
   // Cache version - increment this to force complete cache invalidation
-  cacheVersion: 'v1.0.0'
+  cacheVersion: 'v1.1.0-no-mock-data'
 };
 
 export const getDeploymentId = (): string => {
