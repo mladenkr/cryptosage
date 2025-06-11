@@ -196,6 +196,13 @@ class CacheService {
         return null;
       }
       
+      // Force clear all cache on new deployment
+      if (shouldForceRefresh()) {
+        console.log('New deployment detected, clearing market data cache');
+        this.clearMarketDataCache();
+        return null;
+      }
+      
       const cached = localStorage.getItem(`${this.MARKET_DATA_KEY}_${key}`);
       if (!cached) return null;
 
@@ -463,9 +470,31 @@ class CacheService {
   cleanupOldCache(): void {
     const keys = Object.keys(localStorage);
     keys.forEach(key => {
+      // Remove any Meteora-related cache keys
+      if (key.includes('meteora')) {
+        console.log(`Removing old Meteora cache key: ${key}`);
+        localStorage.removeItem(key);
+        return;
+      }
+      
       if (key.startsWith(this.MARKET_DATA_KEY)) {
         try {
           const data = JSON.parse(localStorage.getItem(key) || '{}');
+          
+          // Check for old Meteora data in the cache content
+          if (data.data && Array.isArray(data.data)) {
+            const hasMeteoraData = data.data.some((item: any) => 
+              item.name?.includes('(Meteora)') || 
+              item.id?.includes('meteora') ||
+              item.symbol?.includes('meteora')
+            );
+            if (hasMeteoraData) {
+              console.log(`Removing cache with old Meteora data: ${key}`);
+              localStorage.removeItem(key);
+              return;
+            }
+          }
+          
           if (data.nextFetchTime) {
             const nextFetch = new Date(data.nextFetchTime);
             if (new Date() >= nextFetch) {
