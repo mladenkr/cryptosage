@@ -34,8 +34,14 @@ const DataSourceIndicator: React.FC<DataSourceIndicatorProps> = ({
 
   useEffect(() => {
     const updateStatus = () => {
-      setDataSource(getCurrentDataSource());
-      setCacheStatus(cacheService.getCacheStatus());
+      try {
+        setDataSource(getCurrentDataSource());
+        setCacheStatus(cacheService.getCacheStatus());
+      } catch (error) {
+        console.error('Error updating data source status:', error);
+        setDataSource('Error');
+        setCacheStatus(null);
+      }
     };
 
     updateStatus();
@@ -68,14 +74,14 @@ const DataSourceIndicator: React.FC<DataSourceIndicatorProps> = ({
     );
   }
 
-  const getCacheStatusColor = () => {
+  const getCacheStatusColor = (): 'default' | 'success' | 'warning' => {
     if (!cacheStatus?.hasCache) return 'default';
     return cacheStatus.isFresh ? 'success' : 'warning';
   };
 
   const getCacheStatusText = () => {
     if (!cacheStatus?.hasCache) return 'No cache';
-    return cacheStatus.isFresh ? 'Fresh cache' : `Cache ${cacheStatus.ageHours.toFixed(1)}h old`;
+    return cacheStatus.isFresh ? 'Fresh cache' : `Cache ${(cacheStatus.ageHours || 0).toFixed(1)}h old`;
   };
 
   return (
@@ -135,11 +141,11 @@ const DataSourceIndicator: React.FC<DataSourceIndicatorProps> = ({
                   {cacheStatus.hasCache && (
                     <>
                       <Typography variant="body2" color="text.secondary">
-                        Cache Age: <strong>{cacheStatus.ageHours.toFixed(1)} hours</strong>
+                        Cache Age: <strong>{(cacheStatus.ageHours || 0).toFixed(1)} hours</strong>
                       </Typography>
                       
                       <Typography variant="body2" color="text.secondary">
-                        Next Update: <strong>{cacheStatus.nextUpdateIn.toFixed(0)} minutes</strong>
+                        Next Update: <strong>{(cacheStatus.minutesUntilNextFetch || 0).toFixed(0)} minutes</strong>
                       </Typography>
                     </>
                   )}

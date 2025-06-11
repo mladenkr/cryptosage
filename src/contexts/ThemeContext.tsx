@@ -17,8 +17,13 @@ interface ThemeProviderProps {
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // Default to dark mode
   const [mode, setMode] = useState<'light' | 'dark'>(() => {
-    const savedMode = localStorage.getItem('cryptosage-theme-mode');
-    return (savedMode as 'light' | 'dark') || 'dark';
+    try {
+      const savedMode = localStorage.getItem('cryptosage-theme-mode');
+      return (savedMode as 'light' | 'dark') || 'dark';
+    } catch (error) {
+      console.warn('Failed to access localStorage:', error);
+      return 'dark';
+    }
   });
 
   const theme = getTheme(mode);
@@ -26,11 +31,19 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const toggleTheme = () => {
     const newMode = mode === 'light' ? 'dark' : 'light';
     setMode(newMode);
-    localStorage.setItem('cryptosage-theme-mode', newMode);
+    try {
+      localStorage.setItem('cryptosage-theme-mode', newMode);
+    } catch (error) {
+      console.warn('Failed to save theme mode to localStorage:', error);
+    }
   };
 
   useEffect(() => {
-    localStorage.setItem('cryptosage-theme-mode', mode);
+    try {
+      localStorage.setItem('cryptosage-theme-mode', mode);
+    } catch (error) {
+      console.warn('Failed to save theme mode to localStorage:', error);
+    }
   }, [mode]);
 
   const value: ThemeContextType = {
