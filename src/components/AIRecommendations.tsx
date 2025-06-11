@@ -371,22 +371,40 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
         return;
       }
       
-      // If no cached data and it's time to fetch, try to fetch
-      if (cacheService.isTimeForNextFetch()) {
-        console.log('AIRecommendations: No cached data available, attempting fresh fetch...');
-        try {
-          const success = await scheduledDataFetcher.fetchDataNow();
-          if (success) {
-            loadCachedData();
-          } else {
-            setError('Unable to load cryptocurrency data. Please wait for the next scheduled update.');
+      // If no cached data, always try to fetch (regardless of schedule when cache is empty)
+      console.log('AIRecommendations: No cached data available, attempting fresh fetch...');
+      console.log('Cache service status:', cacheService.getCacheStatus());
+      console.log('Is time for next fetch:', cacheService.isTimeForNextFetch());
+      
+      try {
+        const success = await scheduledDataFetcher.fetchDataNow();
+        console.log('Fetch result:', success);
+        
+        if (success) {
+          const loaded = loadCachedData();
+          console.log('Cache loaded after fetch:', loaded);
+          if (!loaded) {
+            console.warn('Fetch succeeded but no data was cached');
+            setError('Data fetch completed but no recommendations available. Retrying...');
+            setTimeout(() => {
+              initializeData();
+            }, 3000);
           }
-        } catch (err: any) {
-          console.error('AIRecommendations: Error during initial fetch:', err);
-          setError('Failed to load AI recommendations. Data will be available at the next scheduled update.');
+        } else {
+          console.warn('Fetch failed, will retry');
+          setError('Unable to load Meteora DEX data. Retrying in a moment...');
+          // Retry after a short delay when no cache exists
+          setTimeout(() => {
+            initializeData();
+          }, 5000);
         }
-      } else {
-        setError('No Meteora DEX data available. Data updates automatically every hour.');
+      } catch (err: any) {
+        console.error('AIRecommendations: Error during initial fetch:', err);
+        setError(`Failed to load AI recommendations: ${err.message}. Retrying automatically...`);
+        // Retry after a short delay when no cache exists
+        setTimeout(() => {
+          initializeData();
+        }, 5000);
       }
     } catch (err: any) {
       console.error('AIRecommendations: Error during initialization:', err);
