@@ -1,10 +1,10 @@
 {
   "short_name": "CryptoSage",
-  "name": "CryptoSage - AI-Powered Crypto Recommendations",
+  "name": "CryptoSage - AI-Powered Crypto Analysis",
   "icons": [
     {
       "src": "favicon.ico",
-      "sizes": "32x32",
+      "sizes": "32x32 16x16",
       "type": "image/x-icon"
     },
     {
@@ -25,6 +25,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#667eea",
+  "theme_color": "#0e3145",
   "background_color": "#ffffff"
 } 
