@@ -119,4 +119,114 @@ console.log('   - Market Heatmap: /heatmap');
 console.log('   - Smart Alerts: /alerts');
 console.log('   - Interactive Charts: /charts/bitcoin/BTC (example)');
 console.log('3. Check browser console for any errors');
-console.log('4. Test API data loading and component interactions'); 
+console.log('4. Test API data loading and component interactions');
+
+// Test script to verify Raydium API and recommendation system
+console.log('🔍 Testing Raydium API and Recommendation System...\n');
+
+// Test 1: Check if Raydium API is accessible
+async function testRaydiumAPI() {
+  console.log('1️⃣ Testing Raydium API accessibility...');
+  try {
+    const response = await fetch('https://api.raydium.io/v2/main/pairs');
+    const data = await response.json();
+    
+    if (Array.isArray(data) && data.length > 0) {
+      console.log(`✅ Raydium API is working! Found ${data.length} pools`);
+      
+      // Check how many pools have liquidity
+      const poolsWithLiquidity = data.filter(pool => parseFloat(pool.liquidity || '0') > 0);
+      console.log(`💰 Pools with liquidity: ${poolsWithLiquidity.length}/${data.length}`);
+      
+      // Show sample pools
+      console.log('📊 Sample pools:');
+      data.slice(0, 3).forEach((pool, i) => {
+        console.log(`   ${i+1}. ${pool.name} - Liquidity: $${parseFloat(pool.liquidity || '0').toFixed(0)}, Volume: $${parseFloat(pool.volume24h || '0').toFixed(0)}`);
+      });
+      
+      return true;
+    } else {
+      console.log('❌ Raydium API returned invalid data');
+      return false;
+    }
+  } catch (error) {
+    console.log(`❌ Raydium API failed: ${error.message}`);
+    return false;
+  }
+}
+
+// Test 2: Check cache status
+function testCacheStatus() {
+  console.log('\n2️⃣ Testing cache status...');
+  try {
+    // Check if we have any cached data
+    const cacheKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('crypto_')) {
+        cacheKeys.push(key);
+      }
+    }
+    
+    console.log(`📦 Found ${cacheKeys.length} cache entries:`);
+    cacheKeys.forEach(key => {
+      try {
+        const data = JSON.parse(localStorage.getItem(key) || '{}');
+        const size = JSON.stringify(data).length;
+        console.log(`   - ${key}: ${(size / 1024).toFixed(1)}KB`);
+      } catch (e) {
+        console.log(`   - ${key}: Invalid data`);
+      }
+    });
+    
+    return cacheKeys.length;
+  } catch (error) {
+    console.log(`❌ Cache check failed: ${error.message}`);
+    return 0;
+  }
+}
+
+// Test 3: Clear cache and force fresh fetch
+function clearAllCache() {
+  console.log('\n3️⃣ Clearing all cache...');
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('crypto_') || key.startsWith('meteora_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log(`🗑️ Cleared ${keysToRemove.length} cache entries`);
+    
+    return keysToRemove.length;
+  } catch (error) {
+    console.log(`❌ Cache clearing failed: ${error.message}`);
+    return 0;
+  }
+}
+
+// Run all tests
+async function runTests() {
+  const apiWorking = await testRaydiumAPI();
+  const cacheEntries = testCacheStatus();
+  const clearedEntries = clearAllCache();
+  
+  console.log('\n📋 Test Summary:');
+  console.log(`   API Status: ${apiWorking ? '✅ Working' : '❌ Failed'}`);
+  console.log(`   Cache Entries: ${cacheEntries} found, ${clearedEntries} cleared`);
+  
+  if (apiWorking) {
+    console.log('\n🎉 System should work! Refresh your app to get fresh recommendations.');
+    console.log('💡 If you still see errors, check the browser console for detailed logs.');
+  } else {
+    console.log('\n⚠️ API issues detected. Check your internet connection and try again.');
+  }
+}
+
+// Run the tests
+runTests().catch(error => {
+  console.error('Test execution failed:', error);
+}); 

@@ -31,7 +31,9 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "update-deployment": "node scripts/update-deployment.js",
-    "predeploy": "npm run update-deployment && npm run build"
+    "predeploy": "npm run update-deployment && npm run build",
+    "deploy": "./deploy-reminder.sh",
+    "deploy-force": "git add . && git commit -m 'Auto-deploy commit' && git push && echo 'Deployment pushed to GitHub! Check your hosting platform.'"
   },
   "eslintConfig": {
     "extends": [

@@ -503,10 +503,10 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
             <CircularProgress size={60} sx={{ mb: 2 }} />
             <Typography variant="h6" gutterBottom>
-              Analyzing Raydium DEX Tokens
+              Analyzing Top Cryptocurrencies
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-                              Our AI is performing technical analysis on Raydium DEX data to identify the best Solana DeFi opportunities...
+                              Our AI is performing technical analysis on market data to identify the best cryptocurrency investment opportunities...
             </Typography>
           </Box>
         </CardContent>
@@ -566,7 +566,7 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                 AI-Powered Recommendations
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Top 10 Raydium DEX tokens with highest predicted 24h price volatility
+                Top 10 cryptocurrencies with highest predicted 24h price changes
               </Typography>
             </Box>
           </Box>
@@ -930,8 +930,8 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
             </Box>
             <Typography variant="caption" color="text.secondary">
               Our AI analyzes technical indicators (RSI, MACD, Moving Averages), fundamental metrics (TVL, volume, momentum), 
-                              and Raydium DEX data to predict 24-hour price movements. LONG = price expected to rise &gt;2%, NEUTRAL = minimal change (-2% to 2%),
-                SHORT = price expected to fall &gt;2%. Top 10 Raydium tokens ranked by highest predicted price volatility and trading activity.
+                              and cryptocurrency market data to predict 24-hour price movements. LONG = price expected to rise &gt;2%, NEUTRAL = minimal change (-2% to 2%),
+                SHORT = price expected to fall &gt;2%. Top 10 cryptocurrencies ranked by highest predicted price changes and market activity.
             </Typography>
           </Box>
         )}

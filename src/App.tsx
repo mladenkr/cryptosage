@@ -9,6 +9,7 @@ import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import CoinDetailPage from './components/CoinDetailPage';
 import AIRecommendations from './components/AIRecommendations';
+import EnhancedAIRecommendations from './components/EnhancedAIRecommendations';
 import InteractiveCharts from './components/InteractiveCharts';
 import SimpleTest from './components/SimpleTest';
 
@@ -28,6 +29,7 @@ const AppContent: React.FC = () => {
               <Route path="/test" element={<SimpleTest />} />
               <Route path="/coin/:id" element={<CoinDetailPage />} />
               <Route path="/ai-recommendations" element={<AIRecommendations />} />
+              <Route path="/enhanced-ai" element={<EnhancedAIRecommendations />} />
               <Route path="/charts/:coinId/:coinSymbol" element={<InteractiveChartsWrapper />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

@@ -5,7 +5,26 @@ import { cacheService } from '../services/cacheService';
 const TestComponent: React.FC = () => {
   const handleClearCache = () => {
     cacheService.forceClearCache();
-    alert('Cache cleared! Please refresh the page.');
+    
+    // Clear all cryptocurrency-related cache entries
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.includes('crypto_market_data') || 
+        key.includes('crypto_ai_recommendations') ||
+        key.includes('crypto_ai_performance') ||
+        key.includes('raydium') ||
+        key.includes('meteora')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    console.log(`Cleared ${keysToRemove.length} cache entries:`, keysToRemove);
+    alert(`All cache cleared! Removed ${keysToRemove.length} entries. Please refresh the page.`);
   };
 
   const handleCheckCache = () => {

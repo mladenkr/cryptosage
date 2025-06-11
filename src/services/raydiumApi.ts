@@ -101,7 +101,7 @@ const convertRaydiumPoolToCoin = (poolData: any, poolType: 'CLMM' | 'CP' = 'CP')
       // CLMM Pool format from /ammV3/ammPools
       poolId = poolData.id;
       baseMint = poolData.mintA;
-      quoteMint = poolData.mintB;
+      // quoteMint = poolData.mintB; // Not currently used but available for future features
       price = 0; // Price calculation would need additional token data
       volume24h = 0; // Not directly available
       tvl = parseFloat(poolData.tvl || '0');
@@ -113,14 +113,19 @@ const convertRaydiumPoolToCoin = (poolData: any, poolType: 'CLMM' | 'CP' = 'CP')
       tokenName = `Token ${tokenSymbol}`;
     }
     
-    // Skip pools with insufficient data or extreme prices
-    if (!poolId || !tokenSymbol || (tvl === 0 && volume24h === 0)) {
+    // Skip pools with insufficient data (be more lenient)
+    if (!poolId || !tokenSymbol || tokenSymbol === 'UNKNOWN') {
       return null;
     }
     
-    // Skip pools with extreme prices that might cause issues (more lenient)
-    if (price && (price < 1e-15 || price > 1e15)) {
+    // Only skip pools with extremely problematic prices
+    if (price && (price < 1e-18 || price > 1e18)) {
       console.log(`Skipping pool ${tokenSymbol} with extreme price: ${price}`);
+      return null;
+    }
+    
+    // Allow pools with zero volume but require some liquidity
+    if (tvl <= 0) {
       return null;
     }
     
@@ -206,28 +211,87 @@ class RaydiumApiService {
     try {
       console.log('Fetching CP pools from Raydium...');
       
-      // Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for larger dataset
-      
-      const response = await v2Api.get('/main/pairs', {
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      
-      if (!response.data || !Array.isArray(response.data)) {
-        console.warn('Invalid CP pools response format');
-        return [];
+      // Try fetch first (better CORS support), then fallback to axios
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        const response = await fetch('https://api.raydium.io/v2/main/pairs', {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!Array.isArray(data)) {
+          console.warn('Invalid CP pools response format from fetch');
+          throw new Error('Invalid response format');
+        }
+        
+        console.log(`Fetched ${data.length} CP pools using fetch`);
+        
+        // Apply the same filtering and sorting logic
+        const sortedPools = data
+          .filter((pool: any) => pool && pool.name && parseFloat(pool.liquidity || '0') > 0)
+          .sort((a: any, b: any) => {
+            const liquidityA = parseFloat(a.liquidity || '0');
+            const liquidityB = parseFloat(b.liquidity || '0');
+            const volumeA = parseFloat(a.volume24h || '0');
+            const volumeB = parseFloat(b.volume24h || '0');
+            
+            if (liquidityB !== liquidityA) {
+              return liquidityB - liquidityA;
+            }
+            return volumeB - volumeA;
+          })
+          .slice(0, limit);
+        
+        console.log(`Filtered to ${sortedPools.length} CP pools`);
+        return sortedPools;
+        
+      } catch (fetchError: any) {
+        console.warn('Fetch failed, trying axios:', fetchError.message);
+        
+        // Fallback to axios
+        const controller2 = new AbortController();
+        const timeoutId2 = setTimeout(() => controller2.abort(), 15000);
+        
+        const axiosResponse = await v2Api.get('/main/pairs', {
+          signal: controller2.signal
+        });
+        clearTimeout(timeoutId2);
+        
+        if (!axiosResponse.data || !Array.isArray(axiosResponse.data)) {
+          console.warn('Invalid CP pools response format from axios');
+          return [];
+        }
+        
+        // Apply the same filtering and sorting logic for axios response
+        const sortedAxiosData = axiosResponse.data
+          .filter((pool: any) => pool && pool.name && parseFloat(pool.liquidity || '0') > 0)
+          .sort((a: any, b: any) => {
+            const liquidityA = parseFloat(a.liquidity || '0');
+            const liquidityB = parseFloat(b.liquidity || '0');
+            const volumeA = parseFloat(a.volume24h || '0');
+            const volumeB = parseFloat(b.volume24h || '0');
+            
+            if (liquidityB !== liquidityA) {
+              return liquidityB - liquidityA;
+            }
+            return volumeB - volumeA;
+          })
+          .slice(0, limit);
+        
+        console.log(`Filtered axios data to ${sortedAxiosData.length} CP pools`);
+        return sortedAxiosData;
       }
-      
-      // Sort by volume descending and take top pools
-      const sortedPools = response.data
-        .filter((pool: any) => pool && parseFloat(pool.volume24h || '0') > 10) // Minimum $10 volume (very low threshold)
-        .sort((a: any, b: any) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0'))
-        .slice(0, limit);
-      
-      console.log(`Fetched ${sortedPools.length} CP pools`);
-      return sortedPools;
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.error('CP pools request timed out');
@@ -296,6 +360,14 @@ class RaydiumApiService {
       if (cpPools.status === 'fulfilled') {
         console.log(`Processing ${cpPools.value.length} CP pools...`);
         
+        // Debug: Show first few pools
+        if (cpPools.value.length > 0) {
+          console.log('Sample CP pools:');
+          cpPools.value.slice(0, 3).forEach((pool, i) => {
+            console.log(`  ${i+1}. ${pool.name} - Price: ${pool.price}, Volume: ${pool.volume24h}, Liquidity: ${pool.liquidity}`);
+          });
+        }
+        
         let processedCount = 0;
         let skippedStablecoin = 0;
         let skippedExtreme = 0;
@@ -352,8 +424,8 @@ class RaydiumApiService {
           
           const fallbackCoins: Coin[] = [];
           const topPools = cpPools.value
-            .filter((pool: any) => pool && pool.name && parseFloat(pool.volume24h || '0') > 1)
-            .sort((a: any, b: any) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0'))
+            .filter((pool: any) => pool && pool.name && parseFloat(pool.liquidity || '0') > 0)
+            .sort((a: any, b: any) => parseFloat(b.liquidity || '0') - parseFloat(a.liquidity || '0'))
             .slice(0, 20);
           
           for (const pool of topPools) {

@@ -29,7 +29,11 @@ const Header: React.FC = () => {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navigationItems: { label: string; path: string }[] = [];
+  const navigationItems: { label: string; path: string }[] = [
+    { label: 'Dashboard', path: '/' },
+    { label: 'AI Recommendations', path: '/ai-recommendations' },
+    { label: 'Enhanced AI', path: '/enhanced-ai' },
+  ];
 
   const handleNavigation = (path: string) => {
     navigate(path);

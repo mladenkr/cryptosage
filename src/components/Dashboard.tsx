@@ -72,7 +72,7 @@ const Dashboard: React.FC = () => {
         color="text.secondary"
         sx={{ mb: 2 }}
       >
-                        Get intelligent investment recommendations from Raydium DEX on Solana, powered by advanced technical analysis. Data updates automatically every hour.
+                        Get intelligent investment recommendations for the top 200 cryptocurrencies, powered by advanced technical analysis. Data updates automatically every hour.
       </Typography>
 
       {/* Services Error Alert */}
