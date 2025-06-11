@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  Container,
   Card,
   CardContent,
   Typography,
@@ -66,7 +67,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       setError(null);
       
       console.log('EnhancedAIRecommendations: Starting enhanced analysis...');
-      const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(20);
+      const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(100);
       
       if (analyses.length === 0) {
         setError('No enhanced recommendations available at this time. Please try again later.');
@@ -145,36 +146,41 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
 
   if (loading) {
     return (
-      <Card sx={{ p: 3, textAlign: 'center' }}>
-        <CircularProgress size={40} sx={{ mb: 2 }} />
-        <Typography variant="h6" gutterBottom>
-          Enhanced AI Analysis in Progress
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Card sx={{ p: 3, textAlign: 'center' }}>
+          <CircularProgress size={40} sx={{ mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            Enhanced AI Analysis in Progress
+          </Typography>
+                  <Typography variant="body2" color="text.secondary">
+          Analyzing 500+ cryptocurrencies from multiple data sources... (Showing top 100 results)
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Analyzing 500+ cryptocurrencies from multiple data sources...
-        </Typography>
-        <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />
-      </Card>
+          <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />
+        </Card>
+      </Container>
     );
   }
 
   if (error) {
     return (
-      <Alert 
-        severity="error" 
-        action={
-          <Button color="inherit" size="small" onClick={loadRecommendations}>
-            Retry
-          </Button>
-        }
-      >
-        {error}
-      </Alert>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert 
+          severity="error" 
+          action={
+            <Button color="inherit" size="small" onClick={loadRecommendations}>
+              Retry
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      </Container>
     );
   }
 
   return (
-    <Box>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Box>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
@@ -183,7 +189,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             Enhanced AI Recommendations
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Multi-source analysis of 500+ cryptocurrencies with advanced AI models
+            Multi-source analysis of 500+ cryptocurrencies with advanced AI models (Top 100 shown)
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'right' }}>
@@ -623,6 +629,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
         )}
       </Dialog>
     </Box>
+    </Container>
   );
 };
 
