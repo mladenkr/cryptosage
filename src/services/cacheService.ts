@@ -4,6 +4,8 @@ export interface CachedRecommendations {
   recommendations: CryptoAnalysis[];
   timestamp: number;
   date: string;
+  fetchedAt: Date;
+  nextFetchTime: Date;
 }
 
 export interface PerformanceData {
@@ -37,9 +39,64 @@ export interface DailyPerformance {
 class CacheService {
   private readonly CACHE_KEY = 'crypto_ai_recommendations';
   private readonly PERFORMANCE_KEY = 'crypto_ai_performance';
-  private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  private readonly MARKET_DATA_KEY = 'crypto_market_data';
+  private readonly HOURLY_CACHE_KEY = 'crypto_hourly_cache_schedule';
+  
+  // Hourly fetch schedule: every hour starting at 10:00 GMT+2
+  private readonly FETCH_START_HOUR_GMT_PLUS_2 = 10;
+  private readonly TIMEZONE_OFFSET = 2; // GMT+2
 
-  // Get cached recommendations
+  /**
+   * Calculate the next scheduled fetch time based on hourly intervals starting at 10:00 GMT+2
+   */
+  private getNextFetchTime(): Date {
+    const now = new Date();
+    const gmt2Now = new Date(now.getTime() + (this.TIMEZONE_OFFSET * 60 * 60 * 1000));
+    
+    // Create a date for today at 10:00 GMT+2
+    const todayFetchStart = new Date(gmt2Now);
+    todayFetchStart.setHours(this.FETCH_START_HOUR_GMT_PLUS_2, 0, 0, 0);
+    
+    // Find the next hourly slot
+    let nextFetch = new Date(todayFetchStart);
+    
+    // If current time is before today's 10:00, next fetch is today at 10:00
+    if (gmt2Now < todayFetchStart) {
+      nextFetch = todayFetchStart;
+    } else {
+      // Find the next hour after current time
+      const hoursSinceStart = Math.floor((gmt2Now.getTime() - todayFetchStart.getTime()) / (60 * 60 * 1000));
+      nextFetch.setTime(todayFetchStart.getTime() + ((hoursSinceStart + 1) * 60 * 60 * 1000));
+    }
+    
+    // Convert back to local time
+    return new Date(nextFetch.getTime() - (this.TIMEZONE_OFFSET * 60 * 60 * 1000));
+  }
+
+  /**
+   * Check if it's time for the next scheduled fetch
+   */
+  isTimeForNextFetch(): boolean {
+    const cached = this.getCachedRecommendations();
+    if (!cached) return true;
+    
+    const now = new Date();
+    return now >= cached.nextFetchTime;
+  }
+
+  /**
+   * Get time remaining until next fetch in minutes
+   */
+  getTimeUntilNextFetch(): number {
+    const cached = this.getCachedRecommendations();
+    if (!cached) return 0;
+    
+    const now = new Date();
+    const timeDiff = cached.nextFetchTime.getTime() - now.getTime();
+    return Math.max(0, Math.floor(timeDiff / (60 * 1000)));
+  }
+
+  // Get cached recommendations (only returns valid hourly cached data)
   getCachedRecommendations(): CachedRecommendations | null {
     try {
       const cached = localStorage.getItem(this.CACHE_KEY);
@@ -47,9 +104,14 @@ class CacheService {
 
       const data: CachedRecommendations = JSON.parse(cached);
       
-      // Check if cache is still valid (within 24 hours)
-      const now = Date.now();
-      if (now - data.timestamp > this.CACHE_DURATION) {
+      // Ensure dates are properly parsed
+      data.fetchedAt = new Date(data.fetchedAt);
+      data.nextFetchTime = new Date(data.nextFetchTime);
+      
+      // Check if we're still within the valid hour window
+      const now = new Date();
+      if (now >= data.nextFetchTime) {
+        // Cache has expired, remove it
         this.clearCache();
         return null;
       }
@@ -61,27 +123,89 @@ class CacheService {
     }
   }
 
-  // Cache new recommendations
+  // Cache new recommendations with hourly schedule
   cacheRecommendations(recommendations: CryptoAnalysis[]): void {
     try {
+      const now = new Date();
+      const nextFetchTime = this.getNextFetchTime();
+      
       const cacheData: CachedRecommendations = {
         recommendations,
-        timestamp: Date.now(),
-        date: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+        timestamp: now.getTime(),
+        date: now.toISOString().split('T')[0], // YYYY-MM-DD format
+        fetchedAt: now,
+        nextFetchTime: nextFetchTime
       };
 
       localStorage.setItem(this.CACHE_KEY, JSON.stringify(cacheData));
       
       // Also save for performance tracking
       this.saveForPerformanceTracking(recommendations);
+      
+      console.log(`Data cached at ${now.toLocaleString()}, next fetch scheduled for ${nextFetchTime.toLocaleString()}`);
     } catch (error) {
       console.error('Error caching recommendations:', error);
+    }
+  }
+
+  // Cache market data (for coin lists, prices, etc.) - also follows hourly schedule
+  cacheMarketData(key: string, data: any): void {
+    try {
+      const now = new Date();
+      const nextFetchTime = this.getNextFetchTime();
+      
+      const cacheData = {
+        data,
+        timestamp: now.getTime(),
+        fetchedAt: now,
+        nextFetchTime: nextFetchTime
+      };
+      localStorage.setItem(`${this.MARKET_DATA_KEY}_${key}`, JSON.stringify(cacheData));
+    } catch (error) {
+      console.error('Error caching market data:', error);
+    }
+  }
+
+  // Get cached market data (respects hourly schedule)
+  getCachedMarketData(key: string): any | null {
+    try {
+      const cached = localStorage.getItem(`${this.MARKET_DATA_KEY}_${key}`);
+      if (!cached) return null;
+
+      const data = JSON.parse(cached);
+      
+      // Parse dates if they exist
+      if (data.fetchedAt) data.fetchedAt = new Date(data.fetchedAt);
+      if (data.nextFetchTime) data.nextFetchTime = new Date(data.nextFetchTime);
+      
+      const now = new Date();
+      
+      // Check if cache is still valid based on hourly schedule
+      if (data.nextFetchTime && now >= data.nextFetchTime) {
+        localStorage.removeItem(`${this.MARKET_DATA_KEY}_${key}`);
+        return null;
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Error reading cached market data:', error);
+      return null;
     }
   }
 
   // Clear cache
   clearCache(): void {
     localStorage.removeItem(this.CACHE_KEY);
+  }
+
+  // Clear all market data cache
+  clearMarketDataCache(): void {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith(this.MARKET_DATA_KEY)) {
+        localStorage.removeItem(key);
+      }
+    });
   }
 
   // Save recommendations for performance tracking
@@ -136,20 +260,19 @@ class CacheService {
     }
   }
 
-  // Update performance data with current prices
+  // Update performance data with current prices (within cache window)
   async updatePerformanceData(getCurrentPrice: (coinId: string) => Promise<number>): Promise<void> {
     try {
       const history = this.getPerformanceHistory();
       if (history.length === 0) return;
 
+      // Only update within the current hourly cache window
+      const cached = this.getCachedRecommendations();
+      if (!cached) return;
+
       // Update the most recent performance data
       const latestPerformance = history[0];
-      const now = Date.now();
-      const timeDiff = now - latestPerformance.timestamp;
       
-      // Only update if it's been at least 1 hour since last update
-      if (timeDiff < 60 * 60 * 1000) return;
-
       // Update prices for each coin
       for (const performance of latestPerformance.performances) {
         try {
@@ -183,7 +306,7 @@ class CacheService {
       );
 
       // Update timestamp
-      latestPerformance.timestamp = now;
+      latestPerformance.timestamp = Date.now();
 
       // Save updated history
       localStorage.setItem(this.PERFORMANCE_KEY, JSON.stringify(history));
@@ -198,25 +321,61 @@ class CacheService {
     return history.length > 0 ? history[0] : null;
   }
 
-  // Check if we need new recommendations
+  // Check if we need new recommendations (based on hourly schedule)
   needsNewRecommendations(): boolean {
-    const cached = this.getCachedRecommendations();
-    return cached === null;
+    return this.isTimeForNextFetch();
   }
 
   // Get cache age in hours
   getCacheAge(): number {
     const cached = this.getCachedRecommendations();
-    if (!cached) return 24; // Return 24 hours if no cache
-
+    if (!cached) return 0;
+    
     const now = Date.now();
-    const ageMs = now - cached.timestamp;
-    return ageMs / (60 * 60 * 1000); // Convert to hours
+    return (now - cached.timestamp) / (60 * 60 * 1000);
   }
 
-  // Clear all data (for testing)
+  // Check if cache is fresh (within current hour window)
+  isCacheFresh(): boolean {
+    return !this.isTimeForNextFetch();
+  }
+
+  // Get comprehensive cache status with hourly schedule info
+  getCacheStatus(): { 
+    hasCache: boolean; 
+    ageHours: number; 
+    isFresh: boolean; 
+    nextFetchTime: Date | null;
+    minutesUntilNextFetch: number;
+    fetchedAt: Date | null;
+  } {
+    const cached = this.getCachedRecommendations();
+    
+    if (!cached) {
+      return {
+        hasCache: false,
+        ageHours: 0,
+        isFresh: false,
+        nextFetchTime: this.getNextFetchTime(),
+        minutesUntilNextFetch: 0,
+        fetchedAt: null
+      };
+    }
+
+    return {
+      hasCache: true,
+      ageHours: this.getCacheAge(),
+      isFresh: this.isCacheFresh(),
+      nextFetchTime: cached.nextFetchTime,
+      minutesUntilNextFetch: this.getTimeUntilNextFetch(),
+      fetchedAt: cached.fetchedAt
+    };
+  }
+
+  // Clear all data
   clearAllData(): void {
-    localStorage.removeItem(this.CACHE_KEY);
+    this.clearCache();
+    this.clearMarketDataCache();
     localStorage.removeItem(this.PERFORMANCE_KEY);
   }
 
@@ -224,7 +383,7 @@ class CacheService {
   exportData(): { recommendations: CachedRecommendations | null; performance: DailyPerformance[] } {
     return {
       recommendations: this.getCachedRecommendations(),
-      performance: this.getPerformanceHistory(),
+      performance: this.getPerformanceHistory()
     };
   }
 
@@ -239,6 +398,33 @@ class CacheService {
       }
     } catch (error) {
       console.error('Error importing data:', error);
+    }
+  }
+
+  // Clean up old cache entries (now based on hourly schedule)
+  cleanupOldCache(): void {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith(this.MARKET_DATA_KEY)) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key) || '{}');
+          if (data.nextFetchTime) {
+            const nextFetch = new Date(data.nextFetchTime);
+            if (new Date() >= nextFetch) {
+              localStorage.removeItem(key);
+            }
+          }
+        } catch (error) {
+          // Remove invalid cache entries
+          localStorage.removeItem(key);
+        }
+      }
+    });
+
+    // Check main cache
+    const cached = this.getCachedRecommendations();
+    if (!cached) {
+      this.clearCache();
     }
   }
 }

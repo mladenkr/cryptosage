@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Coin, CoinDetail, GlobalData, TrendingCoin } from '../types';
+import { cacheService } from './cacheService';
 
 // Primary and alternative API endpoints
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
@@ -448,7 +449,7 @@ export const coinGeckoApi = {
     }
   },
 
-  // Get list of coins with market data
+  // Get list of coins with market data (respects hourly caching schedule)
   getCoins: async (
     vs_currency: string = 'usd',
     order: string = 'market_cap_desc',
@@ -457,11 +458,44 @@ export const coinGeckoApi = {
     sparkline: boolean = false,
     price_change_percentage: string = '24h'
   ): Promise<Coin[]> => {
-    return await fetchCoinsWithFallback(vs_currency, order, per_page, page);
+    const cacheKey = `coins_${vs_currency}_${order}_${per_page}_${page}`;
+    
+    // Check cache first (only return if within hourly window)
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached) {
+      console.log('Using cached coin data from current hour window');
+      return cached;
+    }
+    
+    // Only fetch fresh data if it's time for scheduled update
+    if (!cacheService.isTimeForNextFetch()) {
+      console.log('Not time for scheduled update, returning empty array until next hour');
+      return [];
+    }
+    
+    // Fetch fresh data during scheduled window
+    console.log('Fetching fresh coin data during scheduled window');
+    const coins = await fetchCoinsWithFallback(vs_currency, order, per_page, page);
+    
+    // Cache the result with hourly schedule
+    cacheService.cacheMarketData(cacheKey, coins);
+    
+    return coins;
   },
 
-  // Get detailed coin information
+  // Get detailed coin information (respects hourly caching schedule)
   getCoinDetail: async (id: string): Promise<CoinDetail> => {
+    const cacheKey = `coin_detail_${id}`;
+    
+    // Check cache first (only return if within hourly window)
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached) {
+      console.log(`Using cached coin detail for ${id} from current hour window`);
+      return cached;
+    }
+    
+    // Always allow fetching coin details for display purposes, even outside scheduled window
+    // But cache with hourly schedule
     try {
       const response = await coingeckoApi.get(`/coins/${id}`, {
         params: {
@@ -473,6 +507,10 @@ export const coinGeckoApi = {
           sparkline: false,
         },
       });
+      
+      // Cache the result with hourly schedule
+      cacheService.cacheMarketData(cacheKey, response.data);
+      
       return response.data;
     } catch (error) {
       throw new Error(`Failed to fetch detailed information for ${id}. All APIs unavailable.`);
@@ -519,13 +557,29 @@ export const coinGeckoApi = {
     }
   },
 
-  // Get coin price history
+  // Get coin price history (respects hourly caching schedule)
   getCoinHistory: async (
     id: string,
     vs_currency: string = 'usd',
     days: number = 7
   ): Promise<any> => {
-    return await fetchPriceHistoryWithFallback(id, vs_currency, days);
+    const cacheKey = `price_history_${id}_${vs_currency}_${days}`;
+    
+    // Check cache first (only return if within hourly window)
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached) {
+      console.log(`Using cached price history for ${id} from current hour window`);
+      return cached;
+    }
+    
+    // Allow fetching price history for charts even outside scheduled window
+    // But cache with hourly schedule
+    const history = await fetchPriceHistoryWithFallback(id, vs_currency, days);
+    
+    // Cache the result with hourly schedule
+    cacheService.cacheMarketData(cacheKey, history);
+    
+    return history;
   },
 
   // Get coin OHLC data

@@ -26,7 +26,7 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   Psychology as PsychologyIcon,
-  Refresh as RefreshIcon,
+
   Info as InfoIcon,
   Star as StarIcon,
   SmartToy as SmartToyIcon,
@@ -35,9 +35,9 @@ import {
   Warning as WarningIcon,
   Error as ErrorIcon,
 } from '@mui/icons-material';
-import { CryptoAnalysis, cryptoAnalyzer } from '../services/technicalAnalysis';
+import { CryptoAnalysis } from '../services/technicalAnalysis';
 import { cacheService } from '../services/cacheService';
-import { coinGeckoApi } from '../services/api';
+import { scheduledDataFetcher } from '../services/scheduledDataFetcher';
 import { useTheme } from '../contexts/ThemeContext';
 import Sparkline from './Sparkline';
 import {
@@ -346,82 +346,82 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedAnalysis, setSelectedAnalysis] = useState<CryptoAnalysis | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [fetcherStatus, setFetcherStatus] = useState(scheduledDataFetcher.getStatus());
 
-  const fetchRecommendations = useCallback(async (forceRefresh: boolean = false) => {
-    try {
-      setLoading(true);
+  const loadCachedData = useCallback(() => {
+    const cached = cacheService.getCachedRecommendations();
+    if (cached) {
+      console.log('AIRecommendations: Loading cached data, count:', cached.recommendations.length);
+      setRecommendations(cached.recommendations);
+      setLastUpdated(cached.fetchedAt);
       setError(null);
-      
-      console.log('AIRecommendations: Starting fetchRecommendations, forceRefresh:', forceRefresh);
-      
-      // Check if we have cached recommendations and don't need to refresh
-      if (!forceRefresh) {
-        const cached = cacheService.getCachedRecommendations();
-        if (cached) {
-          console.log('AIRecommendations: Using cached recommendations, count:', cached.recommendations.length);
-          setRecommendations(cached.recommendations);
-          setLastUpdated(new Date(cached.timestamp));
-          
-          // Update performance data in background
-          updatePerformanceData();
-          setLoading(false);
-          return;
-        }
-      }
-      
-      console.log('AIRecommendations: Generating new AI recommendations...');
-      const results = await cryptoAnalyzer.getTop10Recommendations();
-      console.log('AIRecommendations: Received recommendations, count:', results.length);
-      
-      // Log first few recommendations for debugging
-      if (results.length > 0) {
-        console.log('AIRecommendations: First 3 recommendations:', results.slice(0, 3).map(r => ({
-          coin: r.coin.name,
-          symbol: r.coin.symbol,
-          recommendation: r.recommendation,
-          predicted24hChange: r.predicted24hChange,
-          overallScore: r.overallScore,
-          confidence: r.confidence
-        })));
-      }
-      
-      // Ensure we have exactly 10 recommendations
-      if (results.length < 10) {
-        console.warn(`AIRecommendations: Only got ${results.length} recommendations, expected 10`);
-      }
-      
-      setRecommendations(results);
-      setLastUpdated(new Date());
-      
-      // Cache the new recommendations
-      if (results.length > 0) {
-        cacheService.cacheRecommendations(results);
-        console.log('AIRecommendations: Cached new recommendations');
-      }
-      
-    } catch (err: any) {
-      console.error('AIRecommendations: Error fetching recommendations:', err);
-      setError('Failed to generate AI recommendations. Please try again.');
-    } finally {
-      setLoading(false);
+      return true;
     }
+    return false;
   }, []);
 
-  useEffect(() => {
-    fetchRecommendations();
-  }, [fetchRecommendations]);
-
-  const updatePerformanceData = async () => {
-    try {
-      await cacheService.updatePerformanceData(async (coinId: string) => {
-        const coinData = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 1, 1);
-        const coin = coinData.find(c => c.id === coinId);
-        return coin ? coin.current_price : 0;
-      });
-    } catch (error) {
-      console.error('Error updating performance data:', error);
+  const initializeData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    // First try to load cached data
+    if (loadCachedData()) {
+      setLoading(false);
+      return;
     }
-  };
+    
+    // If no cached data and it's time to fetch, try to fetch
+    if (cacheService.isTimeForNextFetch()) {
+      console.log('AIRecommendations: No cached data available, attempting fresh fetch...');
+      try {
+        const success = await scheduledDataFetcher.fetchDataNow();
+        if (success) {
+          loadCachedData();
+        } else {
+          setError('Unable to load cryptocurrency data. Please wait for the next scheduled update.');
+        }
+      } catch (err: any) {
+        console.error('AIRecommendations: Error during initial fetch:', err);
+        setError('Failed to load AI recommendations. Data will be available at the next scheduled update.');
+      }
+    } else {
+      setError('No cached data available. Data updates every hour starting at 10:00 GMT+2.');
+    }
+    
+    setLoading(false);
+  }, [loadCachedData]);
+
+  // Update fetcher status periodically
+  useEffect(() => {
+    const updateStatus = () => {
+      setFetcherStatus(scheduledDataFetcher.getStatus());
+      
+      // Check if new data is available
+      if (!loading && !scheduledDataFetcher.isFetchingData()) {
+        loadCachedData();
+      }
+    };
+    
+    updateStatus();
+    const interval = setInterval(updateStatus, 30000); // Update every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [loading, loadCachedData]);
+
+  useEffect(() => {
+    // Initialize the scheduled data fetcher
+    scheduledDataFetcher.init();
+    
+    // Load initial data
+    initializeData();
+    
+    return () => {
+      // Clean up if component unmounts
+      scheduledDataFetcher.stop();
+    };
+  }, [initializeData]);
+
+
 
   const getRecommendationColor = (recommendation: string) => {
     switch (recommendation) {
@@ -494,9 +494,11 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
           <Alert 
             severity="error" 
             action={
-              <Button color="inherit" size="small" onClick={() => fetchRecommendations(true)}>
-                Retry
-              </Button>
+              cacheService.isTimeForNextFetch() ? (
+                <Button color="inherit" size="small" onClick={() => initializeData()}>
+                  Retry
+                </Button>
+              ) : undefined
             }
           >
             {error}
@@ -548,36 +550,39 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                     minute: '2-digit'
                   })}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  Next update: {new Date(lastUpdated.getTime() + 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', {
-                    timeZone: 'Europe/Berlin',
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </Typography>
+                {(() => {
+                  const cacheStatus = cacheService.getCacheStatus();
+                  if (cacheStatus.hasCache) {
+                    return (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {cacheStatus.isFresh ? '🟢 Current hour data' : `🟡 Waiting for next hour`}
+                      </Typography>
+                    );
+                  }
+                  return (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      🔄 Scheduled updates every hour
+                    </Typography>
+                  );
+                })()}
               </Box>
             )}
-            <Tooltip title="Refresh Analysis">
-              <IconButton 
-                onClick={() => fetchRecommendations(true)} 
-                disabled={loading}
-                sx={{
-                  backgroundColor: mode === 'light' ? '#EADDFF' : '#4A4458', // Primary container
-                  color: mode === 'light' ? '#21005D' : '#E8DEF8', // On primary container
-                  '&:hover': {
-                    backgroundColor: mode === 'light' ? '#D0BCFF' : '#625B71', // Darker primary container
-                  },
-                  '&:disabled': {
-                    backgroundColor: mode === 'light' ? '#E7E0EC' : '#49454F', // Surface variant
-                    color: mode === 'light' ? '#79747E' : '#938F99', // Outline
-                  },
-                }}
-              >
-                <RefreshIcon />
-              </IconButton>
+            
+            <Tooltip title={`Next update: ${scheduledDataFetcher.getTimeUntilNextFetch()}`}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label={`Next update: ${scheduledDataFetcher.getTimeUntilNextFetch()}`}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                  }}
+                />
+                {fetcherStatus.isFetching && (
+                  <CircularProgress size={16} />
+                )}
+              </Box>
             </Tooltip>
           </Box>
         </Box>

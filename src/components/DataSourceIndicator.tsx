@@ -1,8 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Chip } from '@mui/material';
-import { Api as ApiIcon } from '@mui/icons-material';
+import { 
+  Chip, 
+  Tooltip, 
+  Box, 
+  Typography,
+  Popover,
+  Card,
+  CardContent,
+  Button,
+  Divider
+} from '@mui/material';
+import { 
+  Info as InfoIcon,
+  Storage as StorageIcon,
+  Refresh as RefreshIcon,
+  Delete as DeleteIcon
+} from '@mui/icons-material';
 import { getCurrentDataSource } from '../services/api';
-import { useTheme } from '../contexts/ThemeContext';
+import { cacheService } from '../services/cacheService';
 
 interface DataSourceIndicatorProps {
   variant?: 'chip' | 'text';
@@ -10,66 +25,157 @@ interface DataSourceIndicatorProps {
 }
 
 const DataSourceIndicator: React.FC<DataSourceIndicatorProps> = ({ 
-  variant = 'text', 
-  size = 'small' 
+  variant = 'chip', 
+  size = 'medium' 
 }) => {
-  const { theme } = useTheme();
-  const [dataSource, setDataSource] = useState(getCurrentDataSource());
+  const [dataSource, setDataSource] = useState<string>('Loading...');
+  const [cacheStatus, setCacheStatus] = useState<any>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    // Initial update on mount
-    setDataSource(getCurrentDataSource());
-    
-    // Update data source every 1 second to catch changes quickly
-    const interval = setInterval(() => {
-      const currentSource = getCurrentDataSource();
-      if (currentSource !== dataSource) {
-        setDataSource(currentSource);
-      }
-    }, 1000);
+    const updateStatus = () => {
+      setDataSource(getCurrentDataSource());
+      setCacheStatus(cacheService.getCacheStatus());
+    };
+
+    updateStatus();
+    const interval = setInterval(updateStatus, 30000); // Update every 30 seconds
 
     return () => clearInterval(interval);
-  }, [dataSource]);
+  }, []);
 
-  if (variant === 'chip') {
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleClearCache = () => {
+    cacheService.clearAllData();
+    setCacheStatus(cacheService.getCacheStatus());
+    handleClose();
+  };
+
+  const open = Boolean(anchorEl);
+
+  if (variant === 'text') {
     return (
-      <Chip
-        icon={<ApiIcon sx={{ fontSize: '0.75rem' }} />}
-        label={`Data: ${dataSource}`}
-        size={size}
-        variant="outlined"
-        sx={{
-          fontSize: '0.65rem',
-          height: size === 'small' ? 20 : 24,
-          '& .MuiChip-label': {
-            px: 0.5,
-          },
-          '& .MuiChip-icon': {
-            fontSize: '0.75rem',
-            ml: 0.5,
-          },
-          borderColor: dataSource === 'Loading...' ? theme.palette.primary.main : theme.palette.divider,
-          color: dataSource === 'Loading...' ? theme.palette.primary.main : theme.palette.text.secondary,
-          backgroundColor: 'transparent',
-        }}
-      />
+      <Typography variant="caption" color="text.secondary">
+        Data source: {dataSource}
+      </Typography>
     );
   }
 
+  const getCacheStatusColor = () => {
+    if (!cacheStatus?.hasCache) return 'default';
+    return cacheStatus.isFresh ? 'success' : 'warning';
+  };
+
+  const getCacheStatusText = () => {
+    if (!cacheStatus?.hasCache) return 'No cache';
+    return cacheStatus.isFresh ? 'Fresh cache' : `Cache ${cacheStatus.ageHours.toFixed(1)}h old`;
+  };
+
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-      <ApiIcon sx={{ fontSize: '0.75rem', color: theme.palette.text.secondary }} />
-      <Typography
-        variant="caption"
-        sx={{
-          fontSize: '0.65rem',
-          color: dataSource === 'Loading...' ? theme.palette.primary.main : theme.palette.text.secondary,
-          fontWeight: 400,
-          letterSpacing: '0.25px',
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Tooltip title={`Data source: ${dataSource}`}>
+        <Chip
+          label={dataSource}
+          size={size}
+          color="primary"
+          variant="outlined"
+          icon={<InfoIcon />}
+        />
+      </Tooltip>
+      
+      <Tooltip title="Cache status and management">
+        <Chip
+          label={getCacheStatusText()}
+          size={size}
+          color={getCacheStatusColor()}
+          variant="outlined"
+          icon={<StorageIcon />}
+          onClick={handleClick}
+          clickable
+        />
+      </Tooltip>
+
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
         }}
       >
-        Data source: {dataSource}
-      </Typography>
+        <Card sx={{ minWidth: 300 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Cache Management
+            </Typography>
+            
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Data Source: <strong>{dataSource}</strong>
+              </Typography>
+              
+              {cacheStatus && (
+                <>
+                  <Typography variant="body2" color="text.secondary">
+                    Cache Status: <strong>{getCacheStatusText()}</strong>
+                  </Typography>
+                  
+                  {cacheStatus.hasCache && (
+                    <>
+                      <Typography variant="body2" color="text.secondary">
+                        Cache Age: <strong>{cacheStatus.ageHours.toFixed(1)} hours</strong>
+                      </Typography>
+                      
+                      <Typography variant="body2" color="text.secondary">
+                        Next Update: <strong>{cacheStatus.nextUpdateIn.toFixed(0)} minutes</strong>
+                      </Typography>
+                    </>
+                  )}
+                </>
+              )}
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<RefreshIcon />}
+                onClick={() => window.location.reload()}
+              >
+                Refresh App
+              </Button>
+              
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={handleClearCache}
+              >
+                Clear Cache
+              </Button>
+            </Box>
+
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+              Cache reduces API calls and improves performance. Data is automatically refreshed every 6 hours.
+            </Typography>
+          </CardContent>
+        </Card>
+      </Popover>
     </Box>
   );
 };

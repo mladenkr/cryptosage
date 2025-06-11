@@ -364,10 +364,9 @@ class InteractiveChartsService {
       
       return {
         pattern_type: 'HEAD_AND_SHOULDERS',
-        type: 'head_and_shoulders',
         confidence: this.calculatePatternConfidence('head_and_shoulders', [leftShoulder, head, rightShoulder]),
-        start_time: leftShoulder.timestamp,
-        end_time: rightShoulder.timestamp,
+        start_date: leftShoulder.timestamp,
+        end_date: rightShoulder.timestamp,
         target_price: this.calculateHeadAndShouldersTarget(leftShoulder, head, rightShoulder),
         key_levels: [leftShoulder.high, head.high, rightShoulder.high],
         description: 'Bearish reversal pattern with three peaks'
@@ -390,10 +389,9 @@ class InteractiveChartsService {
       if (Math.abs(first.high - second.high) / first.high < 0.03) {
         return {
           pattern_type: 'DOUBLE_TOP',
-          type: 'double_top',
           confidence: this.calculatePatternConfidence('double_top', [first, second]),
-          start_time: first.timestamp,
-          end_time: second.timestamp,
+          start_date: first.timestamp,
+          end_date: second.timestamp,
           target_price: first.high - (first.high - Math.min(...recentData.map(c => c.low))),
           key_levels: [first.high, second.high],
           description: 'Bearish reversal pattern with two similar peaks'
@@ -407,10 +405,9 @@ class InteractiveChartsService {
       if (Math.abs(first.low - second.low) / first.low < 0.03) {
         return {
           pattern_type: 'DOUBLE_BOTTOM',
-          type: 'double_bottom',
           confidence: this.calculatePatternConfidence('double_bottom', [first, second]),
-          start_time: first.timestamp,
-          end_time: second.timestamp,
+          start_date: first.timestamp,
+          end_date: second.timestamp,
           target_price: first.low + (Math.max(...recentData.map(c => c.high)) - first.low),
           key_levels: [first.low, second.low],
           description: 'Bullish reversal pattern with two similar troughs'
@@ -437,10 +434,9 @@ class InteractiveChartsService {
     if (supportTrend > 0 && this.isHorizontalLevel(highs.slice(-10))) {
       patterns.push({
         pattern_type: 'TRIANGLE',
-        type: 'ascending_triangle',
         confidence: 70,
-        start_time: recentData[0].timestamp,
-        end_time: recentData[recentData.length - 1].timestamp,
+        start_date: recentData[0].timestamp,
+        end_date: recentData[recentData.length - 1].timestamp,
         target_price: resistanceLevel + (resistanceLevel - Math.min(...lows)),
         key_levels: [resistanceLevel, Math.min(...lows)],
         description: 'Bullish continuation pattern with rising support'
@@ -464,10 +460,9 @@ class InteractiveChartsService {
       if (volatility < 0.05) { // Low volatility consolidation
         return {
           pattern_type: 'FLAG',
-          type: priceMove > 0 ? 'bull_flag' : 'bear_flag',
           confidence: 65,
-          start_time: recentData[0].timestamp,
-          end_time: recentData[recentData.length - 1].timestamp,
+          start_date: recentData[0].timestamp,
+          end_date: recentData[recentData.length - 1].timestamp,
           target_price: recentData[recentData.length - 1].close + (priceMove * recentData[0].open),
           key_levels: [recentData[0].open, recentData[recentData.length - 1].close],
           description: `${priceMove > 0 ? 'Bullish' : 'Bearish'} continuation pattern`
