@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="robotGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6750A4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D0BCFF;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E8DEF8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Robot head/body -->
+  <rect x="8" y="10" width="16" height="14" rx="3" ry="3" fill="url(#robotGradient)" stroke="#21005D" stroke-width="0.5"/>
+  
+  <!-- Robot antennas -->
+  <circle cx="12" cy="8" r="1.5" fill="url(#accentGradient)" stroke="#21005D" stroke-width="0.3"/>
+  <circle cx="20" cy="8" r="1.5" fill="url(#accentGradient)" stroke="#21005D" stroke-width="0.3"/>
+  <line x1="12" y1="9.5" x2="12" y2="10" stroke="#21005D" stroke-width="0.5"/>
+  <line x1="20" y1="9.5" x2="20" y2="10" stroke="#21005D" stroke-width="0.5"/>
+  
+  <!-- Robot eyes -->
+  <circle cx="12" cy="15" r="2" fill="url(#accentGradient)" stroke="#21005D" stroke-width="0.3"/>
+  <circle cx="20" cy="15" r="2" fill="url(#accentGradient)" stroke="#21005D" stroke-width="0.3"/>
+  <circle cx="12" cy="15" r="1" fill="#21005D"/>
+  <circle cx="20" cy="15" r="1" fill="#21005D"/>
+  
+  <!-- Robot mouth -->
+  <rect x="14" y="19" width="4" height="2" rx="1" ry="1" fill="url(#accentGradient)" stroke="#21005D" stroke-width="0.3"/>
+  
+  <!-- Robot arms -->
+  <rect x="5" y="13" width="3" height="6" rx="1.5" ry="1.5" fill="url(#robotGradient)" stroke="#21005D" stroke-width="0.3"/>
+  <rect x="24" y="13" width="3" height="6" rx="1.5" ry="1.5" fill="url(#robotGradient)" stroke="#21005D" stroke-width="0.3"/>
+  
+  <!-- Robot legs -->
+  <rect x="11" y="24" width="3" height="4" rx="1.5" ry="1.5" fill="url(#robotGradient)" stroke="#21005D" stroke-width="0.3"/>
+  <rect x="18" y="24" width="3" height="4" rx="1.5" ry="1.5" fill="url(#robotGradient)" stroke="#21005D" stroke-width="0.3"/>
+  
+  <!-- AI indicator dots -->
+  <circle cx="16" cy="12" r="0.5" fill="#E8DEF8"/>
+  <circle cx="14.5" cy="12.5" r="0.3" fill="#D0BCFF"/>
+  <circle cx="17.5" cy="12.5" r="0.3" fill="#D0BCFF"/>
+</svg> 
