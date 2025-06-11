@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "homepage": ".",
-  "_deployment_force": "2025-06-11T20:45:00.000Z",
-  "comment": "Deployment refresh - 2025-06-11",
+  "deploymentTimestamp": "2024-12-19T22:45:00.000Z",
   "dependencies": {
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
