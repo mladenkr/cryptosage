@@ -34,8 +34,8 @@ export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
 }
 
 export class EnhancedAIAnalysis {
-  private readonly BATCH_SIZE = 20; // Process coins in batches
-  private readonly MAX_COINS_TO_ANALYZE = 500; // Analyze up to 500 coins
+  private readonly BATCH_SIZE = 50; // Process coins in larger batches
+  private readonly MAX_COINS_TO_ANALYZE = 1000; // Analyze up to 1000 coins (effectively infinite for most use cases)
   
   // Advanced technical analysis with multiple indicators
   private calculateAdvancedTechnicalScore(coin: EnhancedCoinData): number {

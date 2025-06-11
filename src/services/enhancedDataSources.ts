@@ -71,7 +71,7 @@ export class EnhancedDataSources {
   }
 
   // Get comprehensive coin list from multiple sources
-  async getEnhancedCoinList(limit: number = 500): Promise<EnhancedCoinData[]> {
+  async getEnhancedCoinList(limit: number = 1000): Promise<EnhancedCoinData[]> {
     console.log(`EnhancedDataSources: Fetching comprehensive coin data for ${limit} coins...`);
     
     const coinSources = await Promise.allSettled([
