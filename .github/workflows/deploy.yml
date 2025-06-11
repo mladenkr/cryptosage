@@ -1,0 +1,50 @@
+name: Auto Update Deployment Config
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'src/config/deployment.ts'
+      - '*.md'
+  workflow_dispatch:
+
+jobs:
+  update-deployment-config:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Update deployment configuration
+        run: npm run update-deployment
+      
+      - name: Check for changes
+        id: check-changes
+        run: |
+          git add src/config/deployment.ts package.json
+          if git diff --staged --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Commit and push deployment config changes
+        if: steps.check-changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -m "chore: update deployment config for cache refresh [auto]"
+          git push 

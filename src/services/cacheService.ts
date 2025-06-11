@@ -1,4 +1,5 @@
 import { CryptoAnalysis } from './technicalAnalysis';
+import { shouldForceRefresh } from '../config/deployment';
 
 export interface CachedRecommendations {
   recommendations: CryptoAnalysis[];
@@ -77,6 +78,11 @@ class CacheService {
    * Check if it's time for the next scheduled fetch
    */
   isTimeForNextFetch(): boolean {
+    // Always return true if new deployment detected
+    if (shouldForceRefresh()) {
+      return true;
+    }
+
     const cached = this.getCachedRecommendations();
     if (!cached) return true;
     
@@ -99,6 +105,13 @@ class CacheService {
   // Get cached recommendations (only returns valid hourly cached data)
   getCachedRecommendations(): CachedRecommendations | null {
     try {
+      // Check for new deployment first
+      if (shouldForceRefresh()) {
+        console.log('New deployment detected, clearing all cache');
+        this.clearAllData();
+        return null;
+      }
+
       const cached = localStorage.getItem(this.CACHE_KEY);
       if (!cached) return null;
 
