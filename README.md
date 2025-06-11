@@ -125,4 +125,4 @@ This application is for educational and informational purposes only. Cryptocurre
 
 **Made with ❤️ and ☕ by [Your Name]**
 
-<!-- Test automatic deployment system - 2025-01-06 --> 
+<!-- Test automatic deployment system - 2025-01-06 --> // Test auto-deploy
