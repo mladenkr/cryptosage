@@ -37,83 +37,112 @@ const v2Api = axios.create({
 });
 
 // Convert Raydium pool data to Coin format for compatibility with existing system
-const convertRaydiumPoolToCoin = (poolData: any): Coin | null => {
+const convertRaydiumPoolToCoin = (poolData: any, poolType: 'CLMM' | 'CP' = 'CP'): Coin | null => {
   try {
     // Handle different pool formats from Raydium API
-    const poolId = poolData.id || poolData.ammId || poolData.address;
-    const baseMint = poolData.baseMint || poolData.mint1;
-    const quoteMint = poolData.quoteMint || poolData.mint2;
-    const baseToken = poolData.baseToken || poolData.token1;
-    const quoteToken = poolData.quoteToken || poolData.token2;
+    let poolId, baseMint, quoteMint, price, volume24h, tvl, priceChange24h;
+    let tokenSymbol, tokenName;
     
-    // Define stablecoins to exclude from recommendations
-    const stablecoins = ['USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'UST', 'USDH', 'TUSD', 'GUSD', 'PAX', 'SUSD'];
-    const majorBaseTokens = ['SOL', 'WSOL'];
+    if (poolType === 'CP') {
+      // CP Pool format from /main/pairs
+      poolId = poolData.ammId;
+      baseMint = poolData.baseMint;
+      quoteMint = poolData.quoteMint;
+      price = parseFloat(poolData.price || '0');
+      volume24h = parseFloat(poolData.volume24h || '0');
+      tvl = parseFloat(poolData.liquidity || '0');
+      priceChange24h = 0; // Not available in CP pools
+      
+      // Extract token info from pool name (e.g., "USDT/USDC" -> prefer non-stablecoin)
+      const poolName = poolData.name || '';
+      const tokens = poolName.split('/');
+      
+      // Define stablecoins to exclude from recommendations
+      const stablecoins = ['USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'UST', 'USDH', 'TUSD', 'GUSD', 'PAX', 'SUSD'];
+      const majorBaseTokens = ['SOL', 'WSOL'];
+      
+      // Skip if both tokens are stablecoins
+      if (tokens.length === 2) {
+        const token1IsStablecoin = stablecoins.includes(tokens[0].toUpperCase());
+        const token2IsStablecoin = stablecoins.includes(tokens[1].toUpperCase());
+        
+        if (token1IsStablecoin && token2IsStablecoin) {
+          return null; // Skip stablecoin pairs
+        }
+        
+        // Prefer non-stablecoin token
+        if (!token1IsStablecoin && token2IsStablecoin) {
+          tokenSymbol = tokens[0];
+        } else if (token1IsStablecoin && !token2IsStablecoin) {
+          tokenSymbol = tokens[1];
+          // Invert price for quote token
+          price = price > 0 ? 1 / price : 0;
+        } else {
+          // Neither is stablecoin, prefer non-major-base token
+          const token1IsMajorBase = majorBaseTokens.includes(tokens[0].toUpperCase());
+          const token2IsMajorBase = majorBaseTokens.includes(tokens[1].toUpperCase());
+          
+          if (!token1IsMajorBase && token2IsMajorBase) {
+            tokenSymbol = tokens[0];
+          } else if (token1IsMajorBase && !token2IsMajorBase) {
+            tokenSymbol = tokens[1];
+            price = price > 0 ? 1 / price : 0;
+          } else {
+            tokenSymbol = tokens[0]; // Default to first token
+          }
+        }
+      } else {
+        tokenSymbol = tokens[0] || 'UNKNOWN';
+      }
+      
+      tokenName = `${tokenSymbol} Token`;
+    } else {
+      // CLMM Pool format from /ammV3/ammPools
+      poolId = poolData.id;
+      baseMint = poolData.mintA;
+      quoteMint = poolData.mintB;
+      price = 0; // Price calculation would need additional token data
+      volume24h = 0; // Not directly available
+      tvl = parseFloat(poolData.tvl || '0');
+      priceChange24h = 0;
+      
+      // For CLMM pools, we need to fetch token metadata separately
+      // For now, create a generic token based on mint address
+      tokenSymbol = baseMint?.slice(-8) || 'UNKNOWN'; // Use last 8 chars of mint as symbol
+      tokenName = `Token ${tokenSymbol}`;
+    }
     
-    // Determine which token to use as the main token
-    let mainToken = baseToken;
-    let mainMint = baseMint;
-    let price = parseFloat(poolData.price || poolData.currentPrice || '0');
-    
-    // Prefer the token that is NOT a stablecoin
-    const baseIsStablecoin = stablecoins.includes(baseToken?.symbol?.toUpperCase());
-    const quoteIsStablecoin = stablecoins.includes(quoteToken?.symbol?.toUpperCase());
-    const baseIsMajorBase = majorBaseTokens.includes(baseToken?.symbol?.toUpperCase());
-    const quoteIsMajorBase = majorBaseTokens.includes(quoteToken?.symbol?.toUpperCase());
-    
-    // Skip if both tokens are stablecoins
-    if (baseIsStablecoin && quoteIsStablecoin) {
+    // Skip pools with insufficient data
+    if (!poolId || !tokenSymbol || (tvl === 0 && volume24h === 0)) {
       return null;
     }
     
-    // Skip if both tokens are major base tokens
-    if (baseIsMajorBase && quoteIsMajorBase) {
-      return null;
-    }
-    
-    // Prefer non-stablecoin token
-    if (quoteToken && !quoteIsStablecoin && baseIsStablecoin) {
-      mainToken = quoteToken;
-      mainMint = quoteMint;
-      // Invert price if we're using quote token
-      price = price > 0 ? 1 / price : 0;
-    } else if (quoteToken && !quoteIsMajorBase && baseIsMajorBase) {
-      mainToken = quoteToken;
-      mainMint = quoteMint;
-      price = price > 0 ? 1 / price : 0;
-    }
-    
-    const volume24h = parseFloat(poolData.volume24h || poolData.day?.volume || '0');
-    const tvl = parseFloat(poolData.tvl || poolData.liquidity || '0');
-    const priceChange24h = parseFloat(poolData.priceChange24h || poolData.day?.priceChangePercent || '0');
-    
-    // Get token image with fallback
-    const tokenImage = mainToken?.logoURI || mainToken?.image;
+    // Generate fallback image
     const fallbackImage = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png';
     
     return {
-      id: mainMint || poolId,
-      symbol: (mainToken?.symbol || 'UNKNOWN').toLowerCase(),
-      name: mainToken?.name || 'Unknown Token',
-      image: tokenImage || fallbackImage,
-      current_price: price,
+      id: baseMint || poolId,
+      symbol: tokenSymbol.toLowerCase(),
+      name: tokenName,
+      image: fallbackImage,
+      current_price: price || 1, // Default to $1 if no price
       market_cap: tvl * 2, // Rough estimate
       market_cap_rank: 0,
       fully_diluted_valuation: tvl * 3,
       total_volume: volume24h,
-      high_24h: price * 1.1,
-      low_24h: price * 0.9,
-      price_change_24h: price * (priceChange24h / 100),
+      high_24h: (price || 1) * 1.1,
+      low_24h: (price || 1) * 0.9,
+      price_change_24h: (price || 1) * (priceChange24h / 100),
       price_change_percentage_24h: priceChange24h,
       market_cap_change_24h: 0,
       market_cap_change_percentage_24h: priceChange24h,
       circulating_supply: 0,
       total_supply: 0,
       max_supply: null,
-      ath: price * 1.5,
+      ath: (price || 1) * 1.5,
       ath_change_percentage: -25,
       ath_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      atl: price * 0.3,
+      atl: (price || 1) * 0.3,
       atl_change_percentage: 200,
       atl_date: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
       roi: null,
@@ -217,39 +246,44 @@ class RaydiumApiService {
         this.getCPPools(limit * 2)
       ]);
 
-      const allPools: any[] = [];
+      // Convert pools to coins and filter out invalid ones
+      const coins: Coin[] = [];
       
       // Process CLMM pools
       if (clmmPools.status === 'fulfilled') {
-        allPools.push(...clmmPools.value);
+        const clmmCoins = clmmPools.value
+          .map((pool: any) => convertRaydiumPoolToCoin(pool, 'CLMM'))
+          .filter((coin): coin is Coin => coin !== null);
+        coins.push(...clmmCoins);
+        console.log(`Converted ${clmmCoins.length} CLMM pools to coins`);
       }
       
       // Process CP pools
       if (cpPools.status === 'fulfilled') {
-        allPools.push(...cpPools.value);
+        const cpCoins = cpPools.value
+          .map((pool: any) => convertRaydiumPoolToCoin(pool, 'CP'))
+          .filter((coin): coin is Coin => coin !== null);
+        coins.push(...cpCoins);
+        console.log(`Converted ${cpCoins.length} CP pools to coins`);
       }
 
-      if (allPools.length === 0) {
+      if (coins.length === 0) {
         console.warn('No pools fetched from any Raydium endpoint');
         return [];
       }
+      
+      // Remove duplicates based on symbol
+      const uniqueCoins = coins.filter((coin, index, self) => 
+        index === self.findIndex(c => c.symbol === coin.symbol)
+      );
 
-      // Convert pools to coins and filter out invalid ones
-      const coins = allPools
-        .map(convertRaydiumPoolToCoin)
-        .filter((coin): coin is Coin => coin !== null)
-        .filter((coin, index, self) => 
-          // Remove duplicates based on symbol
-          index === self.findIndex(c => c.symbol === coin.symbol)
-        );
-
-      if (coins.length === 0) {
+      if (uniqueCoins.length === 0) {
         console.warn('No valid coins after conversion and filtering');
         return [];
       }
 
       // Sort by a combination of volume and TVL for diversity
-      const sortedCoins = coins.sort((a, b) => {
+      const sortedCoins = uniqueCoins.sort((a, b) => {
         const scoreA = (a.total_volume || 0) + (a.market_cap || 0) * 0.1;
         const scoreB = (b.total_volume || 0) + (b.market_cap || 0) * 0.1;
         return scoreB - scoreA;
