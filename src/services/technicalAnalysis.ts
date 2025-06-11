@@ -2,6 +2,7 @@ import { SMA, EMA, RSI, MACD, BollingerBands, Stochastic } from 'technicalindica
 import { Coin } from '../types';
 import { coinGeckoApi } from './api';
 import CategoryService from './categoryService';
+import { meteoraApi } from './meteoraApi';
 
 export interface TechnicalIndicators {
   rsi: number;
@@ -522,91 +523,41 @@ export class CryptoAnalyzer {
 
   public async getTop10Recommendations(): Promise<CryptoAnalysis[]> {
     try {
-      console.log('TechnicalAnalysis: Starting getTop10Recommendations...');
+      console.log('TechnicalAnalysis: Starting getTop10Recommendations from Meteora DEX...');
       
-      // Get top 200 cryptocurrencies
-      const allCoins: Coin[] = [];
-      const seenCoinIds = new Set<string>(); // Track seen coin IDs to prevent duplicates
-      const seenCoinNames = new Set<string>(); // Track seen coin names to prevent duplicates
+      // Get cryptocurrencies from Meteora DEX on Solana
+      console.log('TechnicalAnalysis: Fetching Meteora DEX tokens...');
       
-      console.log('TechnicalAnalysis: Fetching top 200 cryptocurrencies...');
-      
-      for (let page = 1; page <= 10; page++) { // 10 pages * 20 coins = 200 coins
-        try {
-          console.log(`TechnicalAnalysis: Fetching page ${page}/10...`);
-          const coins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 20, page);
-          console.log(`TechnicalAnalysis: Page ${page} returned ${coins.length} coins`);
-          
-          // Filter out duplicates first
-          const filteredCoins = coins.filter(coin => {
-            // Check for duplicates by ID
-            if (seenCoinIds.has(coin.id)) {
-              console.warn(`TechnicalAnalysis: Duplicate coin ID detected: ${coin.name} (${coin.id})`);
-              return false;
-            }
-            
-            // Check for duplicates by name (case-insensitive)
-            const normalizedName = coin.name.toLowerCase().trim();
-            if (seenCoinNames.has(normalizedName)) {
-              console.warn(`TechnicalAnalysis: Duplicate coin name detected: ${coin.name}`);
-              return false;
-            }
-            
-            // Mark as seen
-            seenCoinIds.add(coin.id);
-            seenCoinNames.add(normalizedName);
-            return true;
-          });
-          
-          allCoins.push(...filteredCoins);
-          console.log(`TechnicalAnalysis: Page ${page} added ${filteredCoins.length} unique coins, total: ${allCoins.length}`);
-          
-          // Add delay to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          console.warn(`TechnicalAnalysis: Failed to fetch page ${page}, continuing with available data:`, error);
-          break;
-        }
-      }
-
-      console.log(`TechnicalAnalysis: Fetched ${allCoins.length} cryptocurrencies, now fetching categories for filtering...`);
+      const meteoraCoins = await meteoraApi.getMeteoraCoins(100); // Get up to 100 Meteora tokens
+      console.log(`TechnicalAnalysis: Fetched ${meteoraCoins.length} Meteora tokens`);
 
       // If we have no coins at all, return empty array
-      if (allCoins.length === 0) {
-        console.error('TechnicalAnalysis: No coins fetched, returning empty recommendations');
+      if (meteoraCoins.length === 0) {
+        console.error('TechnicalAnalysis: No Meteora tokens fetched, returning empty recommendations');
         return [];
       }
 
-      // Fetch categories for all coins to filter out unwanted types
-      const coinIds = allCoins.map(coin => coin.id);
-      let categoriesMap: Map<string, string[]>;
-      
-      try {
-        categoriesMap = await CategoryService.batchGetCategories(coinIds);
-        console.log(`TechnicalAnalysis: Retrieved categories for ${categoriesMap.size} coins`);
-      } catch (error) {
-        console.warn('TechnicalAnalysis: Category filtering failed, proceeding without filtering:', error);
-        categoriesMap = new Map(); // Empty map, no filtering
-      }
-      
-      // Filter out coins based on categories and comprehensive checks
-      const validCoins = allCoins.filter(coin => {
-        const categories = categoriesMap.get(coin.id) || [];
+      // Filter out coins with insufficient data for analysis
+      const validCoins = meteoraCoins.filter(coin => {
+        // Basic validation for analysis
+        if (!coin.current_price || coin.current_price <= 0) {
+          console.log(`TechnicalAnalysis: Filtering out ${coin.name} - invalid price: ${coin.current_price}`);
+          return false;
+        }
         
-        // Use comprehensive filtering that checks both categories and coin properties
-        if (CategoryService.shouldExcludeCoinComprehensive(coin, categories)) {
-          console.log(`TechnicalAnalysis: Filtering out excluded token: ${coin.name} (${coin.symbol}) - Categories: ${categories.join(', ')}`);
+        if (!coin.total_volume || coin.total_volume <= 0) {
+          console.log(`TechnicalAnalysis: Filtering out ${coin.name} - insufficient volume: ${coin.total_volume}`);
           return false;
         }
         
         return true;
       });
 
-      console.log(`TechnicalAnalysis: Analyzing ${validCoins.length} cryptocurrencies after category filtering...`);
+      console.log(`TechnicalAnalysis: Analyzing ${validCoins.length} Meteora tokens after filtering...`);
 
-      // If no valid coins after filtering, use top 20 coins without filtering
-      const coinsToAnalyze = validCoins.length > 0 ? validCoins : allCoins.slice(0, 20);
-      console.log(`TechnicalAnalysis: Using ${coinsToAnalyze.length} coins for analysis`);
+      // If no valid coins after filtering, use all available coins
+      const coinsToAnalyze = validCoins.length > 0 ? validCoins : meteoraCoins.slice(0, 20);
+      console.log(`TechnicalAnalysis: Using ${coinsToAnalyze.length} Meteora tokens for analysis`);
 
       // Analyze all coins
       const analyses: CryptoAnalysis[] = [];
@@ -652,7 +603,7 @@ export class CryptoAnalyzer {
       // Ensure we always have exactly 10 recommendations by creating fallback analyses if needed
       if (analyses.length < 10) {
         console.warn(`TechnicalAnalysis: Only ${analyses.length} successful analyses, creating fallback recommendations to reach 10`);
-        const fallbackCoins = coinsToAnalyze.slice(0, Math.max(20, coinsToAnalyze.length)); // Use more coins for fallback
+        const fallbackCoins = coinsToAnalyze.slice(0, Math.max(20, coinsToAnalyze.length)); // Use more Meteora tokens for fallback
         
         for (const coin of fallbackCoins) {
           if (analyses.find(a => a.coin.id === coin.id)) continue; // Skip if already analyzed
@@ -683,16 +634,16 @@ export class CryptoAnalyzer {
               },
               stochastic: { k: 50, d: 50 }
             },
-            signals: ['Basic Analysis'],
+            signals: ['Meteora DEX Analysis'],
             recommendation,
-            riskLevel: coin.market_cap_rank <= 10 ? 'LOW' : coin.market_cap_rank <= 50 ? 'MEDIUM' : 'HIGH',
+            riskLevel: coin.total_volume > 100000 ? 'LOW' : coin.total_volume > 10000 ? 'MEDIUM' : 'HIGH',
             priceTarget: coin.current_price * (1 + predicted24hChange / 100),
             confidence: 60,
             predicted24hChange
           };
           
           analyses.push(fallbackAnalysis);
-          console.log(`TechnicalAnalysis: Created fallback analysis for ${coin.name} (${analyses.length}/10)`);
+          console.log(`TechnicalAnalysis: Created fallback analysis for Meteora token ${coin.name} (${analyses.length}/10)`);
         }
       }
 
@@ -709,14 +660,14 @@ export class CryptoAnalyzer {
       
       let finalRecommendations = sortedAnalyses.slice(0, 10);
       
-      // Final safeguard: if we still don't have 10 recommendations, pad with top market cap coins
+      // Final safeguard: if we still don't have 10 recommendations, pad with additional Meteora tokens
       if (finalRecommendations.length < 10) {
-        console.warn(`TechnicalAnalysis: Still only have ${finalRecommendations.length} recommendations, padding with top market cap coins`);
+        console.warn(`TechnicalAnalysis: Still only have ${finalRecommendations.length} recommendations, padding with additional Meteora tokens`);
         try {
-          const paddingCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 15, 1);
+          const additionalMeteoraCoins = await meteoraApi.getMeteoraCoins(20); // Get more Meteora tokens
           const existingCoinIds = new Set(finalRecommendations.map(r => r.coin.id));
           
-          for (const coin of paddingCoins) {
+          for (const coin of additionalMeteoraCoins) {
             if (finalRecommendations.length >= 10) break;
             if (existingCoinIds.has(coin.id)) continue;
             
@@ -740,16 +691,16 @@ export class CryptoAnalyzer {
                 },
                 stochastic: { k: 50, d: 50 }
               },
-              signals: ['Market Cap Based'],
+              signals: ['Meteora DEX Padding'],
               recommendation: 'NEUTRAL' as const,
-              riskLevel: coin.market_cap_rank <= 10 ? 'LOW' : coin.market_cap_rank <= 50 ? 'MEDIUM' : 'HIGH',
+              riskLevel: coin.total_volume > 100000 ? 'LOW' : coin.total_volume > 10000 ? 'MEDIUM' : 'HIGH',
               priceTarget: coin.current_price,
               confidence: 40,
               predicted24hChange: 0
             };
             
             finalRecommendations.push(paddingAnalysis);
-            console.log(`TechnicalAnalysis: Added padding recommendation for ${coin.name} (${finalRecommendations.length}/10)`);
+            console.log(`TechnicalAnalysis: Added padding recommendation for Meteora token ${coin.name} (${finalRecommendations.length}/10)`);
           }
         } catch (paddingError) {
           console.error('TechnicalAnalysis: Failed to add padding recommendations:', paddingError);
@@ -762,10 +713,10 @@ export class CryptoAnalyzer {
     } catch (error) {
       console.error('TechnicalAnalysis: Error generating recommendations:', error);
       
-      // Last resort fallback - try to get exactly 10 coins and create basic recommendations
+      // Last resort fallback - try to get exactly 10 Meteora tokens and create basic recommendations
       try {
-        console.log('TechnicalAnalysis: Attempting last resort fallback...');
-        const fallbackCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 15, 1); // Get 15 to ensure we have 10 after any filtering
+        console.log('TechnicalAnalysis: Attempting last resort fallback with Meteora tokens...');
+        const fallbackCoins = await meteoraApi.getMeteoraCoins(15); // Get 15 Meteora tokens to ensure we have 10 after any filtering
         
         const fallbackAnalyses: CryptoAnalysis[] = fallbackCoins.slice(0, 10).map(coin => {
           const predicted24hChange = coin.price_change_percentage_24h * 0.3; // Very conservative
@@ -792,16 +743,16 @@ export class CryptoAnalyzer {
               },
               stochastic: { k: 50, d: 50 }
             },
-            signals: ['Fallback Analysis'],
+            signals: ['Meteora Fallback Analysis'],
             recommendation,
-            riskLevel: coin.market_cap_rank <= 10 ? 'LOW' : coin.market_cap_rank <= 50 ? 'MEDIUM' : 'HIGH',
+            riskLevel: coin.total_volume > 100000 ? 'LOW' : coin.total_volume > 10000 ? 'MEDIUM' : 'HIGH',
             priceTarget: coin.current_price * (1 + predicted24hChange / 100),
             confidence: 50,
             predicted24hChange
           };
         });
         
-        console.log(`TechnicalAnalysis: Created exactly ${fallbackAnalyses.length} fallback recommendations`);
+        console.log(`TechnicalAnalysis: Created exactly ${fallbackAnalyses.length} Meteora fallback recommendations`);
         return fallbackAnalyses;
       } catch (fallbackError) {
         console.error('TechnicalAnalysis: Even fallback failed:', fallbackError);

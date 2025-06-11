@@ -3,9 +3,9 @@
 
 export const DEPLOYMENT_CONFIG = {
   // Update this timestamp with each deployment to force cache refresh
-  deploymentTimestamp: 1749659118441,
+  deploymentTimestamp: 1749659750205,
   deploymentVersion: '1.0.0',
-  deploymentDate: '2025-06-11T16:25:18.441Z',
+  deploymentDate: '2025-06-11T16:35:50.205Z',
   
   // Cache version - increment this to force complete cache invalidation
   cacheVersion: 'v1.0.0'

@@ -386,7 +386,7 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
           setError('Failed to load AI recommendations. Data will be available at the next scheduled update.');
         }
       } else {
-        setError('No cached data available. Data updates automatically every hour.');
+        setError('No Meteora DEX data available. Data updates automatically every hour.');
       }
     } catch (err: any) {
       console.error('AIRecommendations: Error during initialization:', err);
