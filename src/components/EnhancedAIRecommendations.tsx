@@ -215,10 +215,10 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
         <Box>
           <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <SmartToyIcon color="primary" />
-            Enhanced AI Recommendations
+            CryptoSage AI Analysis
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Multi-source analysis of 1000+ cryptocurrencies with advanced AI models (Top 500 shown)
+            Advanced AI-powered cryptocurrency analysis with multi-source data from 1000+ coins
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'right' }}>

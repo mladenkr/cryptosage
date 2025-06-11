@@ -24,10 +24,10 @@ const AppContent: React.FC = () => {
           <Header />
           <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default' }}>
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<EnhancedAIRecommendations />} />
               <Route path="/test" element={<SimpleTest />} />
               <Route path="/coin/:id" element={<CoinDetailPage />} />
-              <Route path="/enhanced-ai" element={<EnhancedAIRecommendations />} />
+              <Route path="/basic-dashboard" element={<Dashboard />} />
               <Route path="/charts/:coinId/:coinSymbol" element={<InteractiveChartsWrapper />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

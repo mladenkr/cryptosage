@@ -30,8 +30,8 @@ const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navigationItems: { label: string; path: string }[] = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Enhanced AI', path: '/enhanced-ai' },
+    { label: 'AI Analysis', path: '/' },
+    { label: 'Basic Dashboard', path: '/basic-dashboard' },
   ];
 
   const handleNavigation = (path: string) => {
