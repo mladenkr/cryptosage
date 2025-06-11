@@ -31,7 +31,6 @@ const Header: React.FC = () => {
 
   const navigationItems: { label: string; path: string }[] = [
     { label: 'Dashboard', path: '/' },
-    { label: 'AI Recommendations', path: '/ai-recommendations' },
     { label: 'Enhanced AI', path: '/enhanced-ai' },
   ];
 

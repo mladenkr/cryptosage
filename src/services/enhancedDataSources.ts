@@ -554,6 +554,7 @@ export class EnhancedDataSources {
     if (symbol === 'cro' || id === 'crypto-com-chain') return 'Cronos';
     
     // ERC-20 tokens (most common)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const name = symbol?.toLowerCase();
     if (name.includes('ethereum') || name.includes('matic') || name.includes('polygon')) return 'Ethereum';
     

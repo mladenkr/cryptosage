@@ -1,46 +1,16 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
-import { CssBaseline, Box, Container, Typography } from '@mui/material';
+import { CssBaseline, Box } from '@mui/material';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useTheme } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import CoinDetailPage from './components/CoinDetailPage';
-import AIRecommendations from './components/AIRecommendations';
 import EnhancedAIRecommendations from './components/EnhancedAIRecommendations';
 import InteractiveCharts from './components/InteractiveCharts';
 import SimpleTest from './components/SimpleTest';
-
-// Wrapper components for proper layout
-const AIRecommendationsPage: React.FC = () => {
-  const { theme } = useTheme();
-  
-  return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography
-        variant="h4"
-        component="h1"
-        sx={{
-          fontWeight: 700,
-          mb: 2,
-          color: theme.palette.text.primary,
-        }}
-      >
-        AI-Powered Cryptocurrency Recommendations
-      </Typography>
-      <Typography
-        variant="body1"
-        color="text.secondary"
-        sx={{ mb: 4 }}
-      >
-        Get intelligent investment recommendations for the top cryptocurrencies, powered by advanced technical analysis.
-      </Typography>
-      <AIRecommendations />
-    </Container>
-  );
-};
 
 // App content component that uses the theme
 const AppContent: React.FC = () => {
@@ -57,7 +27,6 @@ const AppContent: React.FC = () => {
               <Route path="/" element={<Dashboard />} />
               <Route path="/test" element={<SimpleTest />} />
               <Route path="/coin/:id" element={<CoinDetailPage />} />
-              <Route path="/ai-recommendations" element={<AIRecommendationsPage />} />
               <Route path="/enhanced-ai" element={<EnhancedAIRecommendations />} />
               <Route path="/charts/:coinId/:coinSymbol" element={<InteractiveChartsWrapper />} />
               <Route path="*" element={<Navigate to="/" replace />} />
