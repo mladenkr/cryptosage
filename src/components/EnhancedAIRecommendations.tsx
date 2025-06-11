@@ -64,7 +64,8 @@ interface EnhancedAIRecommendationsProps {
 const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ onCoinClick }) => {
   const { theme } = useTheme();
   const [recommendations, setRecommendations] = useState<EnhancedCryptoAnalysis[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedAnalysis, setSelectedAnalysis] = useState<EnhancedCryptoAnalysis | null>(null);
@@ -77,9 +78,13 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  const loadRecommendations = useCallback(async () => {
+  const loadRecommendations = useCallback(async (showLoader = false) => {
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      } else {
+        setBackgroundLoading(true);
+      }
       setError(null);
       
       console.log('EnhancedAIRecommendations: Starting enhanced analysis...');
@@ -94,16 +99,46 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       setLastUpdated(new Date());
       console.log(`EnhancedAIRecommendations: Loaded ${analyses.length} enhanced recommendations`);
       
+      // Cache the results
+      localStorage.setItem('enhanced_ai_cache', JSON.stringify({
+        data: analyses,
+        timestamp: Date.now()
+      }));
+      
     } catch (err: any) {
       console.error('EnhancedAIRecommendations: Error loading recommendations:', err);
       setError(err.message || 'Failed to load enhanced recommendations');
     } finally {
       setLoading(false);
+      setBackgroundLoading(false);
     }
   }, []);
 
+  // Load cached data immediately, then refresh in background
   useEffect(() => {
-    loadRecommendations();
+    // Try to load from cache first
+    const cached = localStorage.getItem('enhanced_ai_cache');
+    if (cached) {
+      try {
+        const { data, timestamp } = JSON.parse(cached);
+        const isRecent = Date.now() - timestamp < 5 * 60 * 1000; // 5 minutes
+        
+        if (isRecent && data && data.length > 0) {
+          setRecommendations(data);
+          setLastUpdated(new Date(timestamp));
+          console.log('EnhancedAIRecommendations: Loaded from cache');
+          
+          // Still refresh in background
+          loadRecommendations(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to parse cached data');
+      }
+    }
+    
+    // No cache or cache is old, load with loader
+    loadRecommendations(true);
   }, [loadRecommendations]);
 
   const handleCoinClick = (coinId: string, sourceUrl?: string) => {
@@ -196,7 +231,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
         <Alert 
           severity="error" 
           action={
-            <Button color="inherit" size="small" onClick={loadRecommendations}>
+            <Button color="inherit" size="small" onClick={() => loadRecommendations(true)}>
               Retry
             </Button>
           }
@@ -216,19 +251,27 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
           <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <SmartToyIcon color="primary" />
             CryptoSage AI Analysis
+            {backgroundLoading && (
+              <CircularProgress size={20} sx={{ ml: 1 }} />
+            )}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Advanced AI-powered cryptocurrency analysis with multi-source data from 1000+ coins
+            {backgroundLoading && (
+              <Typography component="span" sx={{ ml: 1, color: 'primary.main', fontSize: '0.75rem' }}>
+                • Updating in background...
+              </Typography>
+            )}
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'right' }}>
           <Button
             variant="outlined"
-            onClick={loadRecommendations}
-            disabled={loading}
+            onClick={() => loadRecommendations(true)}
+            disabled={loading || backgroundLoading}
             startIcon={<PsychologyIcon />}
           >
-            Refresh Analysis
+            {backgroundLoading ? 'Updating...' : 'Refresh Analysis'}
           </Button>
           {lastUpdated && (
             <Typography variant="caption" display="block" sx={{ mt: 1 }}>

@@ -436,12 +436,41 @@ export class EnhancedAIAnalysis {
         return b.liquidityScore - a.liquidityScore;
       });
       
+      // Ensure balanced signal distribution
+      const longSignals = sortedAnalyses.filter(a => a.recommendation === 'LONG');
+      const shortSignals = sortedAnalyses.filter(a => a.recommendation === 'SHORT');
+      const neutralSignals = sortedAnalyses.filter(a => a.recommendation === 'NEUTRAL');
+      
+      // Create balanced result: prioritize by AI score but ensure representation
+      const balancedResult: EnhancedCryptoAnalysis[] = [];
+      
+      // Add top performers (LONG signals) - up to 60% of results
+      const maxLongs = Math.min(longSignals.length, Math.floor(limit * 0.6));
+      balancedResult.push(...longSignals.slice(0, maxLongs));
+      
+      // Add SHORT signals - ensure at least 10% representation if available
+      const maxShorts = Math.min(shortSignals.length, Math.floor(limit * 0.25));
+      balancedResult.push(...shortSignals.slice(0, maxShorts));
+      
+      // Fill remaining with NEUTRAL signals
+      const remaining = limit - balancedResult.length;
+      if (remaining > 0) {
+        balancedResult.push(...neutralSignals.slice(0, remaining));
+      }
+      
+      // Final sort by AI score for display
+      const finalResult = balancedResult
+        .sort((a, b) => b.overallScore - a.overallScore)
+        .slice(0, limit);
+
       console.log(`EnhancedAIAnalysis: Successfully analyzed ${sortedAnalyses.length} coins`);
-      console.log('Top 5 predictions:', sortedAnalyses.slice(0, 5).map(a => 
-        `${a.coin.symbol}: ${a.predictions['24h'].toFixed(2)}% (Score: ${a.overallScore.toFixed(1)})`
+      console.log(`Signal distribution: ${longSignals.length} LONG, ${shortSignals.length} SHORT, ${neutralSignals.length} NEUTRAL`);
+      console.log(`Final result: ${finalResult.filter(a => a.recommendation === 'LONG').length} LONG, ${finalResult.filter(a => a.recommendation === 'SHORT').length} SHORT, ${finalResult.filter(a => a.recommendation === 'NEUTRAL').length} NEUTRAL`);
+      console.log('Top 5 predictions:', finalResult.slice(0, 5).map(a => 
+        `${a.coin.symbol}: ${a.predictions['24h'].toFixed(2)}% (Score: ${a.overallScore.toFixed(1)}, ${a.recommendation})`
       ));
       
-      return sortedAnalyses.slice(0, limit);
+      return finalResult;
       
     } catch (error) {
       console.error('EnhancedAIAnalysis: Error in enhanced analysis:', error);
