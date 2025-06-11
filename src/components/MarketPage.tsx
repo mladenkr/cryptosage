@@ -30,7 +30,7 @@ const MarketPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState('market_cap_desc');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
   const [filteredCoins, setFilteredCoins] = useState<Coin[]>([]);
 
   const coinsPerPage = 20;
@@ -86,10 +86,7 @@ const MarketPage: React.FC = () => {
     }
   };
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    setPage(1); // Reset to first page when searching
-  };
+  // Removed unused handleSearch function
 
   const handleSortChange = (event: SelectChangeEvent) => {
     setSortBy(event.target.value);

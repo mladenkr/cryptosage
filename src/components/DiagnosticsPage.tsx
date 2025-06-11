@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Container,
   Typography,
-  Box,
   useTheme,
 } from '@mui/material';
 import ApiTest from './ApiTest';

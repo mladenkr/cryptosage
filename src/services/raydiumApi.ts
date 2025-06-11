@@ -40,14 +40,14 @@ const v2Api = axios.create({
 const convertRaydiumPoolToCoin = (poolData: any, poolType: 'CLMM' | 'CP' = 'CP'): Coin | null => {
   try {
     // Handle different pool formats from Raydium API
-    let poolId, baseMint, quoteMint, price, volume24h, tvl, priceChange24h;
+    let poolId, baseMint, price, volume24h, tvl, priceChange24h;
     let tokenSymbol, tokenName;
     
     if (poolType === 'CP') {
       // CP Pool format from /main/pairs
       poolId = poolData.ammId;
       baseMint = poolData.baseMint;
-      quoteMint = poolData.quoteMint;
+      // quoteMint = poolData.quoteMint; // Available for future use
       price = parseFloat(poolData.price || '0');
       volume24h = parseFloat(poolData.volume24h || '0');
       tvl = parseFloat(poolData.liquidity || '0');

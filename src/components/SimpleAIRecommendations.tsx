@@ -1,13 +1,11 @@
 import React from 'react';
 import { Card, CardContent, Typography, Box } from '@mui/material';
-import { useTheme } from '../contexts/ThemeContext';
 
 interface SimpleAIRecommendationsProps {
   onCoinClick?: (coinId: string) => void;
 }
 
 const SimpleAIRecommendations: React.FC<SimpleAIRecommendationsProps> = ({ onCoinClick }) => {
-  const { theme } = useTheme();
 
   return (
     <Card sx={{ mb: 3 }}>
