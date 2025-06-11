@@ -422,15 +422,17 @@ export class EnhancedAIAnalysis {
         }
       }
       
-      // Sort by AI Score as the dominant factor, then by predictions
+      // Sort by price prediction difference as the main factor (absolute value)
       const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary sort: AI Score (overallScore) - this should be the dominant factor
-        const scoreDiff = b.overallScore - a.overallScore;
-        if (Math.abs(scoreDiff) > 1) return scoreDiff;
+        // Primary sort: Absolute price prediction difference (bigger moves = higher priority)
+        const aPredictionAbs = Math.abs(a.predictions['24h']);
+        const bPredictionAbs = Math.abs(b.predictions['24h']);
+        const predictionDiff = bPredictionAbs - aPredictionAbs;
+        if (Math.abs(predictionDiff) > 0.5) return predictionDiff;
         
-        // Secondary sort: predicted 24h change for coins with similar scores
-        const predictionDiff = b.predictions['24h'] - a.predictions['24h'];
-        if (Math.abs(predictionDiff) > 0.3) return predictionDiff;
+        // Secondary sort: AI Score for coins with similar prediction magnitude
+        const scoreDiff = b.overallScore - a.overallScore;
+        if (Math.abs(scoreDiff) > 2) return scoreDiff;
         
         // Tertiary sort: liquidity score (prefer more liquid assets)
         return b.liquidityScore - a.liquidityScore;

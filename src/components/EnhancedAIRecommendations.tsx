@@ -77,6 +77,9 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [selectedCoinForDex, setSelectedCoinForDex] = useState<EnhancedCryptoAnalysis | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  
+  // Filter state
+  const [signalFilter, setSignalFilter] = useState<'ALL' | 'LONG' | 'SHORT' | 'NEUTRAL'>('ALL');
 
   const loadRecommendations = useCallback(async (showLoader = false) => {
     try {
@@ -177,6 +180,15 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
   };
+
+  const handleSignalFilterChange = (filter: 'ALL' | 'LONG' | 'SHORT' | 'NEUTRAL') => {
+    setSignalFilter(filter);
+  };
+
+  // Filter recommendations based on selected signal type
+  const filteredRecommendations = signalFilter === 'ALL' 
+    ? recommendations 
+    : recommendations.filter(r => r.recommendation === signalFilter);
 
   const getRecommendationColor = (recommendation: string) => {
     switch (recommendation) {
@@ -281,53 +293,141 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
         </Box>
       </Box>
 
-      {/* Statistics */}
+      {/* Statistics - Now Clickable Filters */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={3}>
-          <Card sx={{ p: 2, textAlign: 'center' }}>
+          <Card 
+            sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              border: signalFilter === 'ALL' ? `2px solid ${theme.palette.primary.main}` : 'none',
+              backgroundColor: signalFilter === 'ALL' ? `${theme.palette.primary.main}10` : 'inherit',
+              '&:hover': {
+                transform: 'translateY(-1px)',
+                boxShadow: 2,
+              }
+            }}
+            onClick={() => handleSignalFilterChange('ALL')}
+          >
             <Typography variant="h6" color="primary">
               {recommendations.length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Coins Analyzed
+              All Coins
             </Typography>
+            {signalFilter === 'ALL' && (
+              <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
+                ACTIVE
+              </Typography>
+            )}
           </Card>
         </Grid>
         <Grid item xs={12} sm={3}>
-          <Card sx={{ p: 2, textAlign: 'center' }}>
+          <Card 
+            sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              border: signalFilter === 'LONG' ? `2px solid ${theme.palette.success.main}` : 'none',
+              backgroundColor: signalFilter === 'LONG' ? `${theme.palette.success.main}10` : 'inherit',
+              '&:hover': {
+                transform: 'translateY(-1px)',
+                boxShadow: 2,
+              }
+            }}
+            onClick={() => handleSignalFilterChange('LONG')}
+          >
             <Typography variant="h6" color="success.main">
               {recommendations.filter(r => r.recommendation === 'LONG').length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Long Signals
             </Typography>
+            {signalFilter === 'LONG' && (
+              <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
+                ACTIVE
+              </Typography>
+            )}
           </Card>
         </Grid>
         <Grid item xs={12} sm={3}>
-          <Card sx={{ p: 2, textAlign: 'center' }}>
+          <Card 
+            sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              border: signalFilter === 'SHORT' ? `2px solid ${theme.palette.error.main}` : 'none',
+              backgroundColor: signalFilter === 'SHORT' ? `${theme.palette.error.main}10` : 'inherit',
+              '&:hover': {
+                transform: 'translateY(-1px)',
+                boxShadow: 2,
+              }
+            }}
+            onClick={() => handleSignalFilterChange('SHORT')}
+          >
             <Typography variant="h6" color="error.main">
               {recommendations.filter(r => r.recommendation === 'SHORT').length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Short Signals
             </Typography>
+            {signalFilter === 'SHORT' && (
+              <Typography variant="caption" color="error.main" sx={{ fontWeight: 600 }}>
+                ACTIVE
+              </Typography>
+            )}
           </Card>
         </Grid>
         <Grid item xs={12} sm={3}>
-          <Card sx={{ p: 2, textAlign: 'center' }}>
+          <Card 
+            sx={{ 
+              p: 2, 
+              textAlign: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              border: signalFilter === 'NEUTRAL' ? `2px solid ${theme.palette.warning.main}` : 'none',
+              backgroundColor: signalFilter === 'NEUTRAL' ? `${theme.palette.warning.main}10` : 'inherit',
+              '&:hover': {
+                transform: 'translateY(-1px)',
+                boxShadow: 2,
+              }
+            }}
+            onClick={() => handleSignalFilterChange('NEUTRAL')}
+          >
             <Typography variant="h6" color="warning.main">
               {recommendations.filter(r => r.recommendation === 'NEUTRAL').length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Neutral Signals
             </Typography>
+            {signalFilter === 'NEUTRAL' && (
+              <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600 }}>
+                ACTIVE
+              </Typography>
+            )}
           </Card>
         </Grid>
       </Grid>
 
+      {/* Filter Status */}
+      {signalFilter !== 'ALL' && (
+        <Box sx={{ mb: 2, p: 2, backgroundColor: `${getRecommendationColor(signalFilter)}10`, borderRadius: 2 }}>
+          <Typography variant="h6" sx={{ color: getRecommendationColor(signalFilter), fontWeight: 600 }}>
+            Showing {filteredRecommendations.length} {signalFilter} Signal{filteredRecommendations.length !== 1 ? 's' : ''}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Click "All Coins" above to see all recommendations
+          </Typography>
+        </Box>
+      )}
+
       {/* Recommendations Grid */}
       <Grid container spacing={2}>
-        {recommendations.map((analysis, index) => (
+        {filteredRecommendations.map((analysis, index) => (
           <Grid item xs={12} sm={6} md={4} lg={2.4} key={analysis.coin.id}>
             <Card
               sx={{
