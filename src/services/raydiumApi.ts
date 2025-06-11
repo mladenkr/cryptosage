@@ -112,8 +112,14 @@ const convertRaydiumPoolToCoin = (poolData: any, poolType: 'CLMM' | 'CP' = 'CP')
       tokenName = `Token ${tokenSymbol}`;
     }
     
-    // Skip pools with insufficient data
+    // Skip pools with insufficient data or extreme prices
     if (!poolId || !tokenSymbol || (tvl === 0 && volume24h === 0)) {
+      return null;
+    }
+    
+    // Skip pools with extreme prices that might cause issues
+    if (price && (price < 1e-12 || price > 1e12)) {
+      console.log(`Skipping pool ${tokenSymbol} with extreme price: ${price}`);
       return null;
     }
     
@@ -302,7 +308,9 @@ class RaydiumApiService {
       }
 
       if (coins.length === 0) {
-        console.warn('No pools fetched from any Raydium endpoint');
+        console.warn('No pools converted to coins from any Raydium endpoint');
+        console.log('CLMM status:', clmmPools.status, clmmPools.status === 'fulfilled' ? `${clmmPools.value.length} pools` : clmmPools.reason);
+        console.log('CP status:', cpPools.status, cpPools.status === 'fulfilled' ? `${cpPools.value.length} pools` : cpPools.reason);
         return [];
       }
       
