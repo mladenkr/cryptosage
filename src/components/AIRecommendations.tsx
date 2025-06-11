@@ -485,10 +485,10 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
             <CircularProgress size={60} sx={{ mb: 2 }} />
             <Typography variant="h6" gutterBottom>
-              Analyzing Top 200 Cryptocurrencies
+              Analyzing Meteora DEX Tokens
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-              Our AI is performing technical analysis on market data to identify the best investment opportunities...
+              Our AI is performing technical analysis on Meteora DEX data to identify the best Solana DeFi opportunities...
             </Typography>
           </Box>
         </CardContent>
@@ -548,7 +548,7 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                 AI-Powered Recommendations
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Top 10 cryptocurrencies with highest predicted 24h price volatility
+                Top 10 Meteora DEX tokens with highest predicted 24h price volatility
               </Typography>
             </Box>
           </Box>
@@ -682,6 +682,12 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                         <Typography variant="caption" color="text.secondary">
                           {analysis.coin.symbol.toUpperCase()}
                         </Typography>
+                        {/* Market Cap */}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem' }}>
+                          MCap: {analysis.coin.market_cap > 1000000 
+                            ? `$${(analysis.coin.market_cap / 1000000).toFixed(1)}M` 
+                            : `$${(analysis.coin.market_cap / 1000).toFixed(0)}K`}
+                        </Typography>
                       </Box>
                     </Box>
 
@@ -691,7 +697,7 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                     </Typography>
 
                     {/* Price Change */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                       {analysis.coin.price_change_percentage_24h >= 0 ? (
                         <TrendingUpIcon
                           sx={{
@@ -720,6 +726,18 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
                         (24h)
+                      </Typography>
+                    </Box>
+
+                    {/* Volume and 24h Range */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem' }}>
+                        Vol: {analysis.coin.total_volume > 1000000 
+                          ? `$${(analysis.coin.total_volume / 1000000).toFixed(1)}M` 
+                          : `$${(analysis.coin.total_volume / 1000).toFixed(0)}K`}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem' }}>
+                        Range: {formatCurrency(analysis.coin.low_24h)} - {formatCurrency(analysis.coin.high_24h)}
                       </Typography>
                     </Box>
 
@@ -893,9 +911,9 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
               </Typography>
             </Box>
             <Typography variant="caption" color="text.secondary">
-              Our AI analyzes technical indicators (RSI, MACD, Moving Averages), fundamental metrics (market cap, volume, momentum), 
-              and sentiment data to predict 24-hour price movements. LONG = price expected to rise &gt;2%, NEUTRAL = minimal change (-2% to 2%), 
-              SHORT = price expected to fall &gt;2%. Top 10 coins ranked by highest predicted price volatility (up or down).
+              Our AI analyzes technical indicators (RSI, MACD, Moving Averages), fundamental metrics (TVL, volume, momentum), 
+              and Meteora DEX data to predict 24-hour price movements. LONG = price expected to rise &gt;2%, NEUTRAL = minimal change (-2% to 2%), 
+              SHORT = price expected to fall &gt;2%. Top 10 Meteora tokens ranked by highest predicted price volatility and trading activity.
             </Typography>
           </Box>
         )}

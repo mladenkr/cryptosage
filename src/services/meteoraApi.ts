@@ -72,11 +72,15 @@ const convertMeteoraPoolToCoin = (poolData: any): Coin => {
   const tvl = parseFloat(poolData.tvl || poolData.liquidity || '0');
   const priceChange24h = parseFloat(poolData.price_change_24h || '0');
   
+  // Get token image with fallback to a default Solana token icon
+  const tokenImage = mainToken?.logoURI || mainTokenInfo?.logoURI || mainToken?.image || mainTokenInfo?.image;
+  const fallbackImage = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'; // SOL logo as fallback
+  
   return {
     id: mainToken?.address || poolAddress,
     symbol: (mainToken?.symbol || mainTokenInfo?.symbol || 'UNKNOWN').toLowerCase(),
     name: mainToken?.name || mainTokenInfo?.name || 'Unknown Token',
-    image: mainToken?.logoURI || mainTokenInfo?.logoURI || '',
+    image: tokenImage || fallbackImage,
     current_price: price,
     market_cap: tvl * 2, // Rough estimate: TVL * 2 as market cap proxy
     market_cap_rank: 0, // Will be set based on sorting
@@ -196,7 +200,10 @@ class MeteoraApiService {
       id: `${token.symbol.toLowerCase()}-meteora`,
       symbol: token.symbol.toLowerCase(),
       name: `${token.name} (Meteora)`,
-      image: '',
+      image: token.symbol === 'SOL' ? 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png' :
+             token.symbol === 'USDC' ? 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png' :
+             token.symbol === 'RAY' ? 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png' :
+             'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
       current_price: token.price,
       market_cap: token.price * 1000000, // Mock market cap
       market_cap_rank: index + 1,
@@ -284,7 +291,7 @@ class MeteoraApiService {
         return mockCoins;
       }
 
-      // Convert pools to Coin format
+      // Convert pools to Coin format with quality filtering
       const coins: Coin[] = [];
       const seenTokens = new Set<string>();
 
@@ -292,8 +299,16 @@ class MeteoraApiService {
         try {
           const coin = convertMeteoraPoolToCoin(pool);
           
+          // Apply quality filters for high-volume, high-market-cap coins with significant price changes
+          const hasValidPrice = coin.current_price > 0;
+          const hasMinimumVolume = coin.total_volume > 1000; // Minimum $1k daily volume
+          const hasMinimumMarketCap = coin.market_cap > 10000; // Minimum $10k market cap proxy
+          const hasSignificantChange = Math.abs(coin.price_change_percentage_24h) > 0.1; // At least 0.1% change
+          const isNotUnknown = coin.symbol !== 'unknown' && coin.name !== 'Unknown Token';
+          
           // Avoid duplicates and ensure valid data
-          if (!seenTokens.has(coin.id) && coin.current_price > 0 && coin.symbol !== 'unknown') {
+          if (!seenTokens.has(coin.id) && hasValidPrice && hasMinimumVolume && 
+              hasMinimumMarketCap && hasSignificantChange && isNotUnknown) {
             seenTokens.add(coin.id);
             coins.push(coin);
           }
@@ -302,13 +317,34 @@ class MeteoraApiService {
         }
       });
 
-      // Sort by volume (24h) descending
-      coins.sort((a, b) => b.total_volume - a.total_volume);
+      // Multi-factor sorting: prioritize high price change, high volume, and high market cap
+      coins.sort((a, b) => {
+        // Calculate composite score: 40% price change volatility, 30% volume, 30% market cap
+        const aScore = (Math.abs(a.price_change_percentage_24h) * 0.4) + 
+                      (Math.log10(a.total_volume + 1) * 0.3) + 
+                      (Math.log10(a.market_cap + 1) * 0.3);
+        const bScore = (Math.abs(b.price_change_percentage_24h) * 0.4) + 
+                      (Math.log10(b.total_volume + 1) * 0.3) + 
+                      (Math.log10(b.market_cap + 1) * 0.3);
+        return bScore - aScore;
+      });
       
       // Set market cap ranks
       coins.forEach((coin, index) => {
         coin.market_cap_rank = index + 1;
       });
+
+      // Log top coins for debugging
+      if (coins.length > 0) {
+        console.log('Top 5 Meteora coins by composite score:', coins.slice(0, 5).map(c => ({
+          name: c.name,
+          symbol: c.symbol,
+          volume: c.total_volume,
+          marketCap: c.market_cap,
+          priceChange: c.price_change_percentage_24h.toFixed(2) + '%',
+          price: c.current_price
+        })));
+      }
 
       let finalCoins = coins.slice(0, limit);
       
