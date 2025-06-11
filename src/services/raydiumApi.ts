@@ -170,7 +170,7 @@ class RaydiumApiService {
       
       // Sort by TVL descending and take top pools
       const sortedPools = response.data.data
-        .filter((pool: any) => pool && parseFloat(pool.tvl || '0') > 100) // Minimum $100 TVL
+        .filter((pool: any) => pool && parseFloat(pool.tvl || '0') > 10) // Minimum $10 TVL
         .sort((a: any, b: any) => parseFloat(b.tvl || '0') - parseFloat(a.tvl || '0'))
         .slice(0, limit);
       
@@ -195,8 +195,8 @@ class RaydiumApiService {
       
       // Sort by volume descending and take top pools
       const sortedPools = response.data
-        .filter((pool: any) => pool && parseFloat(pool.volume_24h || '0') > 1000) // Minimum $1k volume
-        .sort((a: any, b: any) => parseFloat(b.volume_24h || '0') - parseFloat(a.volume_24h || '0'))
+        .filter((pool: any) => pool && parseFloat(pool.volume24h || '0') > 100) // Minimum $100 volume
+        .sort((a: any, b: any) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0'))
         .slice(0, limit);
       
       console.log(`Fetched ${sortedPools.length} CP pools`);
@@ -260,8 +260,15 @@ class RaydiumApiService {
       
       // Process CP pools
       if (cpPools.status === 'fulfilled') {
+        console.log(`Processing ${cpPools.value.length} CP pools...`);
         const cpCoins = cpPools.value
-          .map((pool: any) => convertRaydiumPoolToCoin(pool, 'CP'))
+          .map((pool: any) => {
+            const coin = convertRaydiumPoolToCoin(pool, 'CP');
+            if (!coin && pool.volume24h > 100) {
+              console.log('Filtered out CP pool:', pool.name, 'Volume:', pool.volume24h);
+            }
+            return coin;
+          })
           .filter((coin): coin is Coin => coin !== null);
         coins.push(...cpCoins);
         console.log(`Converted ${cpCoins.length} CP pools to coins`);
