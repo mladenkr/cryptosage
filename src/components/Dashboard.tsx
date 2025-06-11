@@ -10,17 +10,13 @@ import PerformanceTracker from './PerformanceTracker';
 import DataSourceIndicator from './DataSourceIndicator';
 import { useTheme } from '../contexts/ThemeContext';
 import { cacheService } from '../services/cacheService';
-import { scheduledDataFetcher } from '../services/scheduledDataFetcher';
 
 const Dashboard: React.FC = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
 
-  // Initialize cache system and scheduled data fetcher on component mount
+  // Initialize cache system on component mount
   useEffect(() => {
-    // Initialize the scheduled data fetcher
-    scheduledDataFetcher.init();
-    
     // Clean up old cache entries
     cacheService.cleanupOldCache();
     

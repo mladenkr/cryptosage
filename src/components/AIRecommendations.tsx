@@ -361,34 +361,39 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
   }, []);
 
   const initializeData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
-    // First try to load cached data
-    if (loadCachedData()) {
-      setLoading(false);
-      return;
-    }
-    
-    // If no cached data and it's time to fetch, try to fetch
-    if (cacheService.isTimeForNextFetch()) {
-      console.log('AIRecommendations: No cached data available, attempting fresh fetch...');
-      try {
-        const success = await scheduledDataFetcher.fetchDataNow();
-        if (success) {
-          loadCachedData();
-        } else {
-          setError('Unable to load cryptocurrency data. Please wait for the next scheduled update.');
-        }
-      } catch (err: any) {
-        console.error('AIRecommendations: Error during initial fetch:', err);
-        setError('Failed to load AI recommendations. Data will be available at the next scheduled update.');
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // First try to load cached data
+      if (loadCachedData()) {
+        setLoading(false);
+        return;
       }
-    } else {
-      setError('No cached data available. Data updates every hour starting at 10:00 GMT+2.');
+      
+      // If no cached data and it's time to fetch, try to fetch
+      if (cacheService.isTimeForNextFetch()) {
+        console.log('AIRecommendations: No cached data available, attempting fresh fetch...');
+        try {
+          const success = await scheduledDataFetcher.fetchDataNow();
+          if (success) {
+            loadCachedData();
+          } else {
+            setError('Unable to load cryptocurrency data. Please wait for the next scheduled update.');
+          }
+        } catch (err: any) {
+          console.error('AIRecommendations: Error during initial fetch:', err);
+          setError('Failed to load AI recommendations. Data will be available at the next scheduled update.');
+        }
+      } else {
+        setError('No cached data available. Data updates every hour starting at 10:00 GMT+2.');
+      }
+    } catch (err: any) {
+      console.error('AIRecommendations: Error during initialization:', err);
+      setError('Failed to initialize AI recommendations. Please refresh the page.');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   }, [loadCachedData]);
 
   // Update fetcher status periodically
@@ -409,15 +414,26 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
   }, [loading, loadCachedData]);
 
   useEffect(() => {
-    // Initialize the scheduled data fetcher
-    scheduledDataFetcher.init();
-    
-    // Load initial data
+    // Load initial data first without initializing the scheduler
     initializeData();
     
+    // Initialize the scheduled data fetcher after a delay to avoid initialization conflicts
+    const timer = setTimeout(() => {
+      try {
+        scheduledDataFetcher.init();
+      } catch (error) {
+        console.error('Error initializing scheduled data fetcher:', error);
+      }
+    }, 1000);
+    
     return () => {
+      clearTimeout(timer);
       // Clean up if component unmounts
-      scheduledDataFetcher.stop();
+      try {
+        scheduledDataFetcher.stop();
+      } catch (error) {
+        console.error('Error stopping scheduled data fetcher:', error);
+      }
     };
   }, [initializeData]);
 
