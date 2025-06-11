@@ -540,11 +540,50 @@ export class CryptoAnalyzer {
         });
       }
 
-      // If we have no coins at all, create a minimal fallback to prevent app from breaking
+      // If we have no coins at all, fall back to regular cryptocurrency data
       if (meteoraCoins.length === 0) {
-        console.error('TechnicalAnalysis: No Meteora tokens fetched, creating minimal fallback');
+        console.warn('TechnicalAnalysis: No Meteora tokens fetched, falling back to regular cryptocurrency data');
         
-        // Create a minimal fallback with current SOL price from a simple API
+        try {
+          // Use the regular API to get top cryptocurrencies as fallback
+          const regularCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 50, 1);
+          console.log(`TechnicalAnalysis: Fetched ${regularCoins.length} regular cryptocurrencies as fallback`);
+          
+          if (regularCoins.length > 0) {
+            // Use regular coins for analysis
+            const validCoins = regularCoins.filter(coin => {
+              return coin.current_price > 0 && coin.total_volume > 0;
+            }).slice(0, 20); // Limit to top 20 for analysis
+            
+            console.log(`TechnicalAnalysis: Using ${validCoins.length} regular cryptocurrencies for analysis`);
+            
+            // Analyze regular coins
+            const analyses: CryptoAnalysis[] = [];
+            
+            for (const coin of validCoins.slice(0, 15)) { // Analyze top 15
+              try {
+                const analysis = await this.analyzeCoin(coin);
+                if (analysis.signals.length > 0) {
+                  analyses.push(analysis);
+                }
+              } catch (error: any) {
+                console.warn(`TechnicalAnalysis: Failed to analyze ${coin.name}:`, error.message);
+              }
+              
+              if (analyses.length >= 10) break; // Stop when we have 10
+            }
+            
+            if (analyses.length >= 10) {
+              console.log(`TechnicalAnalysis: Successfully created ${analyses.length} analyses from regular cryptocurrencies`);
+              return analyses.slice(0, 10);
+            }
+          }
+        } catch (regularApiError) {
+          console.error('TechnicalAnalysis: Regular API also failed:', regularApiError);
+        }
+        
+        // Last resort: create a minimal fallback with current SOL price
+        console.warn('TechnicalAnalysis: All APIs failed, creating minimal SOL fallback');
         try {
           const solPriceResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
           const solPriceData = await solPriceResponse.json();

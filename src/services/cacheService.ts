@@ -100,17 +100,25 @@ class CacheService {
       const data: CachedRecommendations = JSON.parse(cached);
       
       // Check if this is old mock data by looking for the old $95.50 SOL price
-      // or other indicators of mock data
+      // or other indicators of mock data or problematic cache
       if (data.recommendations && data.recommendations.length > 0) {
         const hasOldMockData = data.recommendations.some(rec => 
           (rec.coin.symbol === 'sol' && Math.abs(rec.coin.current_price - 95.50) < 0.01) ||
           rec.coin.name.includes('(Meteora)') ||
           rec.signals?.includes('Meteora Fallback Analysis') ||
-          rec.signals?.includes('Meteora DEX Padding')
+          rec.signals?.includes('Meteora DEX Padding') ||
+          rec.signals?.includes('Meteora API Unavailable - Fallback Mode')
         );
         
         if (hasOldMockData) {
           console.log('Detected old mock data in cache, clearing cache to force fresh fetch');
+          this.clearAllData();
+          return null;
+        }
+        
+        // Check if we have too few recommendations (less than 5)
+        if (data.recommendations.length < 5) {
+          console.log('Detected insufficient recommendations in cache, clearing to force fresh fetch');
           this.clearAllData();
           return null;
         }
@@ -406,6 +414,22 @@ class CacheService {
     localStorage.removeItem(this.PERFORMANCE_KEY);
   }
 
+  // Manual cache clearing function for debugging
+  forceClearCache(): void {
+    console.log('Force clearing all cache data...');
+    this.clearAllData();
+    // Also clear any other potential cache keys
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('crypto_') || key.startsWith('meteora_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log(`Cleared ${keysToRemove.length} additional cache keys`);
+  }
+
   // Export data for backup
   exportData(): { recommendations: CachedRecommendations | null; performance: DailyPerformance[] } {
     return {
@@ -456,4 +480,9 @@ class CacheService {
   }
 }
 
-export const cacheService = new CacheService(); 
+export const cacheService = new CacheService();
+
+// Make cache service available globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).cacheService = cacheService;
+} 

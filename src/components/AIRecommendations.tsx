@@ -392,7 +392,7 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
           }
         } else {
           console.warn('Fetch failed, will retry');
-          setError('Unable to load Meteora DEX data. Retrying in a moment...');
+          setError('Unable to load cryptocurrency data. Please wait for the next scheduled update.');
           // Retry after a short delay when no cache exists
           setTimeout(() => {
             initializeData();
@@ -400,7 +400,7 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
         }
       } catch (err: any) {
         console.error('AIRecommendations: Error during initial fetch:', err);
-        setError(`Failed to load AI recommendations: ${err.message}. Retrying automatically...`);
+        setError('Unable to load cryptocurrency data. Please wait for the next scheduled update.');
         // Retry after a short delay when no cache exists
         setTimeout(() => {
           initializeData();

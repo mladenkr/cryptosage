@@ -467,20 +467,46 @@ export const coinGeckoApi = {
       return cached;
     }
     
-    // Only fetch fresh data if it's time for scheduled update
-    if (!cacheService.isTimeForNextFetch()) {
-      console.log('Not time for scheduled update, returning empty array until next hour');
-      return [];
+    // If it's time for scheduled update, fetch fresh data
+    if (cacheService.isTimeForNextFetch()) {
+      console.log('Fetching fresh coin data during scheduled window');
+      try {
+        const coins = await fetchCoinsWithFallback(vs_currency, order, per_page, page);
+        
+        // Cache the result with hourly schedule
+        cacheService.cacheMarketData(cacheKey, coins);
+        
+        return coins;
+      } catch (error) {
+        console.error('Failed to fetch fresh coin data:', error);
+        // Fall through to check for any older cached data
+      }
     }
     
-    // Fetch fresh data during scheduled window
-    console.log('Fetching fresh coin data during scheduled window');
-    const coins = await fetchCoinsWithFallback(vs_currency, order, per_page, page);
+    // If not time for update or fresh fetch failed, try to get any available cached data (even if expired)
+    try {
+      const expiredCached = localStorage.getItem(`crypto_market_data_${cacheKey}`);
+      if (expiredCached) {
+        const data = JSON.parse(expiredCached);
+        if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+          console.log('Using expired cached coin data as fallback');
+          return data.data;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to read expired cache:', error);
+    }
     
-    // Cache the result with hourly schedule
-    cacheService.cacheMarketData(cacheKey, coins);
-    
-    return coins;
+    // Last resort: try to fetch fresh data anyway
+    console.log('No cached data available, attempting fresh fetch as last resort');
+    try {
+      const coins = await fetchCoinsWithFallback(vs_currency, order, per_page, page);
+      cacheService.cacheMarketData(cacheKey, coins);
+      return coins;
+    } catch (error) {
+      console.error('All data sources failed:', error);
+      return [];
+    }
   },
 
   // Get detailed coin information (respects hourly caching schedule)
