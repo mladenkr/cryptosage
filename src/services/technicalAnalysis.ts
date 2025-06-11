@@ -1,7 +1,6 @@
 import { SMA, EMA, RSI, MACD, BollingerBands, Stochastic } from 'technicalindicators';
 import { Coin } from '../types';
 import { coinGeckoApi } from './api';
-import CategoryService from './categoryService';
 import { meteoraApi } from './meteoraApi';
 
 export interface TechnicalIndicators {

@@ -74,9 +74,9 @@ const convertPoolDataToCoin = (poolData: any, tokenData: any): Coin => {
   };
 };
 
-export const meteoraApi = {
+class MeteoraApiService {
   // Get supported DEXes on Solana to find Meteora's exact ID
-  getSupportedDexes: async (): Promise<any[]> => {
+  async getSupportedDexes(): Promise<any[]> {
     try {
       const response = await onchainApi.get(`/networks/${SOLANA_NETWORK}/dexes`);
       console.log('Supported DEXes on Solana:', response.data);
@@ -85,10 +85,10 @@ export const meteoraApi = {
       console.error('Failed to fetch supported DEXes:', error);
       throw new Error('Failed to fetch supported DEXes on Solana');
     }
-  },
+  }
 
   // Get top pools from Meteora DEX
-  getMeteoraTopPools: async (page: number = 1, limit: number = 20): Promise<any[]> => {
+  async getMeteoraTopPools(page: number = 1, limit: number = 20): Promise<any[]> {
     try {
       const response = await onchainApi.get(`/networks/${SOLANA_NETWORK}/dexes/${METEORA_DEX_ID}/pools`, {
         params: {
@@ -104,10 +104,10 @@ export const meteoraApi = {
       // Try alternative approach if direct DEX filtering fails
       return await this.getMeteoraPoolsAlternative(page, limit);
     }
-  },
+  }
 
   // Alternative method: Get all Solana pools and filter for Meteora
-  getMeteoraPoolsAlternative: async (page: number = 1, limit: number = 20): Promise<any[]> => {
+  async getMeteoraPoolsAlternative(page: number = 1, limit: number = 20): Promise<any[]> {
     try {
       console.log('Trying alternative method to get Meteora pools...');
       const response = await onchainApi.get(`/networks/${SOLANA_NETWORK}/pools`, {
@@ -122,7 +122,7 @@ export const meteoraApi = {
       // Filter pools that belong to Meteora
       const meteoraPools = allPools.filter((pool: any) => {
         const dexName = pool.relationships?.dex?.data?.id?.toLowerCase();
-        return dexName === 'meteora' || dexName?.includes('meteora');
+        return dexName === 'meteora' || (dexName && dexName.includes('meteora'));
       });
       
       console.log(`Found ${meteoraPools.length} Meteora pools from ${allPools.length} total pools`);
@@ -131,10 +131,10 @@ export const meteoraApi = {
       console.error('Alternative Meteora pools fetch failed:', error);
       throw new Error('Failed to fetch Meteora pools using alternative method');
     }
-  },
+  }
 
   // Get token data for pools
-  getTokensData: async (tokenAddresses: string[]): Promise<any[]> => {
+  async getTokensData(tokenAddresses: string[]): Promise<any[]> {
     try {
       if (tokenAddresses.length === 0) return [];
       
@@ -144,10 +144,10 @@ export const meteoraApi = {
       console.error('Failed to fetch token data:', error);
       return [];
     }
-  },
+  }
 
   // Get Meteora coins formatted for the recommendation system
-  getMeteoraCoins: async (limit: number = 50): Promise<Coin[]> => {
+  async getMeteoraCoins(limit: number = 50): Promise<Coin[]> {
     const cacheKey = `meteora_coins_${limit}`;
     
     // Check cache first
@@ -252,10 +252,10 @@ export const meteoraApi = {
       // Return empty array as fallback
       return [];
     }
-  },
+  }
 
   // Get trending Meteora pools
-  getTrendingMeteoraCoins: async (limit: number = 20): Promise<Coin[]> => {
+  async getTrendingMeteoraCoins(limit: number = 20): Promise<Coin[]> {
     try {
       // Get trending pools across all networks and filter for Solana/Meteora
       const response = await onchainApi.get('/networks/trending_pools');
@@ -282,4 +282,7 @@ export const meteoraApi = {
       return [];
     }
   }
-}; 
+}
+
+// Export a singleton instance
+export const meteoraApi = new MeteoraApiService(); 
