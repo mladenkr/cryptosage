@@ -59,30 +59,49 @@ const convertMeteoraPoolToCoin = (poolData: any): Coin | null => {
   let mainTokenInfo = poolData.token_x_info || poolData.mint_x_info;
   let price = parseFloat(poolData.current_price || poolData.price || '0');
   
-  // Define stablecoins and major base tokens to exclude from recommendations
-  const stablecoins = ['USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'UST', 'USDH'];
-  const basePairTokens = ['SOL', 'WSOL', 'ETH', 'WETH', 'BTC', 'WBTC'];
-  const excludedTokens = [...stablecoins, ...basePairTokens];
+  // Define stablecoins to exclude from recommendations (keep filtering these)
+  const stablecoins = ['USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'UST', 'USDH', 'TUSD', 'GUSD', 'PAX', 'SUSD'];
+  // Only exclude major base tokens when they appear as both tokens in a pair (to avoid SOL/SOL pairs etc.)
+  const majorBaseTokens = ['SOL', 'WSOL'];
+  const excludedTokens = [...stablecoins];
   
-  // Prefer the token that is NOT a stablecoin or base pair token
-  const tokenXIsExcluded = excludedTokens.includes(tokenX?.symbol?.toUpperCase());
-  const tokenYIsExcluded = excludedTokens.includes(tokenY?.symbol?.toUpperCase());
+  // Prefer the token that is NOT a stablecoin
+  const tokenXIsStablecoin = stablecoins.includes(tokenX?.symbol?.toUpperCase());
+  const tokenYIsStablecoin = stablecoins.includes(tokenY?.symbol?.toUpperCase());
+  const tokenXIsMajorBase = majorBaseTokens.includes(tokenX?.symbol?.toUpperCase());
+  const tokenYIsMajorBase = majorBaseTokens.includes(tokenY?.symbol?.toUpperCase());
   
-  if (tokenY && !tokenYIsExcluded && tokenXIsExcluded) {
+  // Skip if both tokens are stablecoins
+  if (tokenXIsStablecoin && tokenYIsStablecoin) {
+    return null; // Will be filtered out
+  }
+  
+  // Skip if both tokens are major base tokens (like SOL/SOL pairs)
+  if (tokenXIsMajorBase && tokenYIsMajorBase) {
+    return null; // Will be filtered out
+  }
+  
+  // Prefer non-stablecoin token
+  if (tokenY && !tokenYIsStablecoin && tokenXIsStablecoin) {
     mainToken = tokenY;
     mainTokenInfo = poolData.token_y_info || poolData.mint_y_info;
     // Invert price if we're using token_y
     price = price > 0 ? 1 / price : 0;
-  } else if (tokenX && tokenXIsExcluded && tokenY && !tokenYIsExcluded) {
-    // Keep tokenX as mainToken but this shouldn't happen due to above condition
+  } else if (tokenX && !tokenXIsStablecoin && tokenYIsStablecoin) {
+    // Keep tokenX as mainToken
+    mainToken = tokenX;
+    mainTokenInfo = poolData.token_x_info || poolData.mint_x_info;
+  } else if (tokenY && !tokenYIsMajorBase && tokenXIsMajorBase) {
+    // Prefer non-major-base token
+    mainToken = tokenY;
+    mainTokenInfo = poolData.token_y_info || poolData.mint_y_info;
+    price = price > 0 ? 1 / price : 0;
+  } else if (tokenX && !tokenXIsMajorBase && tokenYIsMajorBase) {
+    // Keep tokenX as mainToken
     mainToken = tokenX;
     mainTokenInfo = poolData.token_x_info || poolData.mint_x_info;
   }
-  
-  // Skip this pool entirely if both tokens are excluded (stablecoin pairs, etc.)
-  if (tokenXIsExcluded && tokenYIsExcluded) {
-    return null; // Will be filtered out
-  }
+  // If neither token is excluded, keep the default (tokenX)
   
   const volume24h = parseFloat(poolData.volume_24h || poolData.trade_volume_24h || '0');
   const tvl = parseFloat(poolData.tvl || poolData.liquidity || '0');
@@ -206,13 +225,16 @@ class MeteoraApiService {
     try {
       console.log('Fetching fresh Meteora coins data from native APIs...');
       
-      // Fetch pools from multiple Meteora APIs and search queries
-      const [dlmmPools, ammPools, searchSol, searchUsdc, searchPopular] = await Promise.allSettled([
-        this.getDLMMPools(limit),
-        this.getAMMPools(Math.ceil(limit / 2)),
-        this.searchPools('sol', Math.ceil(limit / 3)),
-        this.searchPools('usdc', Math.ceil(limit / 4)),
-        this.searchPools('', Math.ceil(limit / 2)) // Get popular pools
+      // Fetch pools from multiple Meteora APIs and search queries with more aggressive fetching
+      const [dlmmPools, searchSol, searchUsdc, searchPopular, searchBtc, searchEth, searchMeme, searchDefi] = await Promise.allSettled([
+        this.getDLMMPools(limit * 3), // Get even more DLMM pools
+        this.searchPools('sol', limit),
+        this.searchPools('usdc', limit),
+        this.searchPools('', limit * 2), // Get more popular pools
+        this.searchPools('btc', limit),
+        this.searchPools('eth', limit),
+        this.searchPools('meme', Math.ceil(limit / 2)), // Search for meme tokens
+        this.searchPools('defi', Math.ceil(limit / 2))  // Search for DeFi tokens
       ]);
 
       // Combine all pools
@@ -221,11 +243,6 @@ class MeteoraApiService {
       if (dlmmPools.status === 'fulfilled') {
         allPools.push(...dlmmPools.value);
         console.log(`Added ${dlmmPools.value.length} DLMM pools`);
-      }
-      
-      if (ammPools.status === 'fulfilled') {
-        allPools.push(...ammPools.value);
-        console.log(`Added ${ammPools.value.length} AMM pools`);
       }
       
       if (searchSol.status === 'fulfilled') {
@@ -241,6 +258,26 @@ class MeteoraApiService {
       if (searchPopular.status === 'fulfilled') {
         allPools.push(...searchPopular.value);
         console.log(`Added ${searchPopular.value.length} popular pools`);
+      }
+      
+      if (searchBtc.status === 'fulfilled') {
+        allPools.push(...searchBtc.value);
+        console.log(`Added ${searchBtc.value.length} BTC search pools`);
+      }
+      
+      if (searchEth.status === 'fulfilled') {
+        allPools.push(...searchEth.value);
+        console.log(`Added ${searchEth.value.length} ETH search pools`);
+      }
+      
+      if (searchMeme.status === 'fulfilled') {
+        allPools.push(...searchMeme.value);
+        console.log(`Added ${searchMeme.value.length} meme token pools`);
+      }
+      
+      if (searchDefi.status === 'fulfilled') {
+        allPools.push(...searchDefi.value);
+        console.log(`Added ${searchDefi.value.length} DeFi token pools`);
       }
 
       console.log(`Total pools fetched: ${allPools.length}`);
@@ -263,16 +300,16 @@ class MeteoraApiService {
             return;
           }
           
-          // Apply quality filters for high-volume, high-market-cap coins with significant price changes
+          // Apply more relaxed quality filters to get more Meteora tokens (stablecoins already filtered in conversion)
           const hasValidPrice = coin.current_price > 0;
-          const hasMinimumVolume = coin.total_volume > 1000; // Minimum $1k daily volume
-          const hasMinimumMarketCap = coin.market_cap > 10000; // Minimum $10k market cap proxy
-          const hasSignificantChange = Math.abs(coin.price_change_percentage_24h) > 0.1; // At least 0.1% change
+          const hasMinimumVolume = coin.total_volume > 100; // Reduced from $1k to $100 daily volume
+          const hasMinimumMarketCap = coin.market_cap > 1000; // Reduced from $10k to $1k market cap proxy
+          const hasAnyChange = Math.abs(coin.price_change_percentage_24h) >= 0; // Accept any price change (including 0)
           const isNotUnknown = coin.symbol !== 'unknown' && coin.name !== 'Unknown Token';
           
-          // Avoid duplicates and ensure valid data
+          // Avoid duplicates and ensure valid data (much more permissive)
           if (!seenTokens.has(coin.id) && hasValidPrice && hasMinimumVolume && 
-              hasMinimumMarketCap && hasSignificantChange && isNotUnknown) {
+              hasMinimumMarketCap && hasAnyChange && isNotUnknown) {
             seenTokens.add(coin.id);
             coins.push(coin);
           }
