@@ -474,7 +474,6 @@ export class EnhancedDataSources {
     // Common network detection based on coin data
     const symbol = coin.symbol?.toLowerCase();
     const id = coin.id?.toLowerCase();
-    const name = coin.name?.toLowerCase();
     
     // Native tokens
     if (symbol === 'eth' || id === 'ethereum') return 'Ethereum';
@@ -554,22 +553,21 @@ export class EnhancedDataSources {
     if (symbol === 'cro' || id === 'crypto-com-chain') return 'Cronos';
     
     // ERC-20 tokens (most common)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const name = symbol?.toLowerCase();
-    if (name.includes('ethereum') || name.includes('matic') || name.includes('polygon')) return 'Ethereum';
+    const symbolLower = symbol?.toLowerCase();
+    if (symbolLower.includes('ethereum') || symbolLower.includes('matic') || symbolLower.includes('polygon')) return 'Ethereum';
     
     // BSC tokens
-    if (name.includes('binance') || name.includes('bnb')) return 'BNB Chain';
+    if (symbolLower.includes('binance') || symbolLower.includes('bnb')) return 'BNB Chain';
     
     // Polygon tokens
-    if (name.includes('matic') || name.includes('polygon')) return 'Polygon';
+    if (symbolLower.includes('matic') || symbolLower.includes('polygon')) return 'Polygon';
     
     // Other networks
-    if (name.includes('avalanche') || name.includes('avax')) return 'Avalanche';
-    if (name.includes('solana')) return 'Solana';
-    if (name.includes('fantom')) return 'Fantom';
-    if (name.includes('arbitrum')) return 'Arbitrum';
-    if (name.includes('optimism')) return 'Optimism';
+    if (symbolLower.includes('avalanche') || symbolLower.includes('avax')) return 'Avalanche';
+    if (symbolLower.includes('solana')) return 'Solana';
+    if (symbolLower.includes('fantom')) return 'Fantom';
+    if (symbolLower.includes('arbitrum')) return 'Arbitrum';
+    if (symbolLower.includes('optimism')) return 'Optimism';
     
     return undefined;
   }
