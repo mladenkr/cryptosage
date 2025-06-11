@@ -37,7 +37,7 @@ import {
   Warning as WarningIcon,
   Error as ErrorIcon,
   ExpandMore as ExpandMoreIcon,
-  TrendingFlat as TrendingFlatIcon,
+
 } from '@mui/icons-material';
 import { EnhancedCryptoAnalysis, enhancedAIAnalysis } from '../services/enhancedAIAnalysis';
 import { useTheme } from '../contexts/ThemeContext';
@@ -92,9 +92,9 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   }, [loadRecommendations]);
 
   const handleCoinClick = (coinId: string) => {
-    if (onCoinClick) {
-      onCoinClick(coinId);
-    }
+    // Open CoinGecko page for the coin in a new tab
+    const coinGeckoUrl = `https://www.coingecko.com/en/coins/${coinId}`;
+    window.open(coinGeckoUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleViewDetails = (analysis: EnhancedCryptoAnalysis) => {

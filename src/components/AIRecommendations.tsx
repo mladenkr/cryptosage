@@ -484,9 +484,9 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
   };
 
   const handleCoinClick = (analysis: CryptoAnalysis) => {
-    if (onCoinClick) {
-      onCoinClick(analysis.coin.id);
-    }
+    // Open CoinGecko page for the coin in a new tab
+    const coinGeckoUrl = `https://www.coingecko.com/en/coins/${analysis.coin.id}`;
+    window.open(coinGeckoUrl, '_blank', 'noopener,noreferrer');
   };
 
   if (loading) {
