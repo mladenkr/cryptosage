@@ -20,7 +20,7 @@ const SimpleAIRecommendations: React.FC<SimpleAIRecommendationsProps> = ({ onCoi
         
         <Typography variant="body1" color="text.secondary">
           This is a simplified version to test if the app loads correctly.
-          Data updates every hour starting at 10:00 GMT+2.
+          Data updates automatically every hour.
         </Typography>
         
         <Typography variant="body2" sx={{ mt: 2 }}>

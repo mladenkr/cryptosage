@@ -43,35 +43,17 @@ class CacheService {
   private readonly MARKET_DATA_KEY = 'crypto_market_data';
   private readonly HOURLY_CACHE_KEY = 'crypto_hourly_cache_schedule';
   
-  // Hourly fetch schedule: every hour starting at 10:00 GMT+2
-  private readonly FETCH_START_HOUR_GMT_PLUS_2 = 10;
-  private readonly TIMEZONE_OFFSET = 2; // GMT+2
+  // Hourly fetch interval (1 hour in milliseconds)
+  private readonly HOURLY_INTERVAL = 60 * 60 * 1000; // 1 hour
 
   /**
-   * Calculate the next scheduled fetch time based on hourly intervals starting at 10:00 GMT+2
+   * Calculate the next scheduled fetch time based on rolling hourly intervals
+   * Always fetches 1 hour from the current time
    */
   private getNextFetchTime(): Date {
     const now = new Date();
-    const gmt2Now = new Date(now.getTime() + (this.TIMEZONE_OFFSET * 60 * 60 * 1000));
-    
-    // Create a date for today at 10:00 GMT+2
-    const todayFetchStart = new Date(gmt2Now);
-    todayFetchStart.setHours(this.FETCH_START_HOUR_GMT_PLUS_2, 0, 0, 0);
-    
-    // Find the next hourly slot
-    let nextFetch = new Date(todayFetchStart);
-    
-    // If current time is before today's 10:00, next fetch is today at 10:00
-    if (gmt2Now < todayFetchStart) {
-      nextFetch = todayFetchStart;
-    } else {
-      // Find the next hour after current time
-      const hoursSinceStart = Math.floor((gmt2Now.getTime() - todayFetchStart.getTime()) / (60 * 60 * 1000));
-      nextFetch.setTime(todayFetchStart.getTime() + ((hoursSinceStart + 1) * 60 * 60 * 1000));
-    }
-    
-    // Convert back to local time
-    return new Date(nextFetch.getTime() - (this.TIMEZONE_OFFSET * 60 * 60 * 1000));
+    // Next fetch is always exactly 1 hour from now
+    return new Date(now.getTime() + this.HOURLY_INTERVAL);
   }
 
   /**
