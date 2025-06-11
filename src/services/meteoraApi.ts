@@ -48,24 +48,40 @@ const searchApi = axios.create({
 });
 
 // Convert Meteora pool data to Coin format for compatibility with existing system
-const convertMeteoraPoolToCoin = (poolData: any): Coin => {
+const convertMeteoraPoolToCoin = (poolData: any): Coin | null => {
   // Handle both DLMM and AMM pool formats
   const poolAddress = poolData.pool_address || poolData.address;
   const tokenX = poolData.token_x || poolData.mint_x;
   const tokenY = poolData.token_y || poolData.mint_y;
   
-  // Use the non-SOL/USDC token as the main token, or token_x if both are non-stablecoins
+  // Use the non-stablecoin token as the main token, prioritizing non-stablecoins
   let mainToken = tokenX;
   let mainTokenInfo = poolData.token_x_info || poolData.mint_x_info;
   let price = parseFloat(poolData.current_price || poolData.price || '0');
   
-  // If token_y is not a stablecoin/SOL, prefer it
-  const stablecoins = ['USDC', 'USDT', 'SOL', 'WSOL'];
-  if (tokenY && !stablecoins.includes(tokenY.symbol?.toUpperCase())) {
+  // Define stablecoins and major base tokens to exclude from recommendations
+  const stablecoins = ['USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'UST', 'USDH'];
+  const basePairTokens = ['SOL', 'WSOL', 'ETH', 'WETH', 'BTC', 'WBTC'];
+  const excludedTokens = [...stablecoins, ...basePairTokens];
+  
+  // Prefer the token that is NOT a stablecoin or base pair token
+  const tokenXIsExcluded = excludedTokens.includes(tokenX?.symbol?.toUpperCase());
+  const tokenYIsExcluded = excludedTokens.includes(tokenY?.symbol?.toUpperCase());
+  
+  if (tokenY && !tokenYIsExcluded && tokenXIsExcluded) {
     mainToken = tokenY;
     mainTokenInfo = poolData.token_y_info || poolData.mint_y_info;
     // Invert price if we're using token_y
     price = price > 0 ? 1 / price : 0;
+  } else if (tokenX && tokenXIsExcluded && tokenY && !tokenYIsExcluded) {
+    // Keep tokenX as mainToken but this shouldn't happen due to above condition
+    mainToken = tokenX;
+    mainTokenInfo = poolData.token_x_info || poolData.mint_x_info;
+  }
+  
+  // Skip this pool entirely if both tokens are excluded (stablecoin pairs, etc.)
+  if (tokenXIsExcluded && tokenYIsExcluded) {
+    return null; // Will be filtered out
   }
   
   const volume24h = parseFloat(poolData.volume_24h || poolData.trade_volume_24h || '0');
@@ -174,62 +190,7 @@ class MeteoraApiService {
     }
   }
 
-  // Create mock Meteora coins for development/fallback
-  private createMockMeteoraCoins(limit: number = 50): Coin[] {
-    console.log('Creating mock Meteora coins for development/fallback');
-    
-    const mockTokens = [
-      { symbol: 'SOL', name: 'Solana', price: 95.50, volume: 2500000, change: 5.2 },
-      { symbol: 'USDC', name: 'USD Coin', price: 1.00, volume: 8500000, change: 0.1 },
-      { symbol: 'RAY', name: 'Raydium', price: 2.15, volume: 1200000, change: -2.3 },
-      { symbol: 'SRM', name: 'Serum', price: 0.45, volume: 850000, change: 3.8 },
-      { symbol: 'ORCA', name: 'Orca', price: 1.85, volume: 650000, change: -1.2 },
-      { symbol: 'MNGO', name: 'Mango', price: 0.12, volume: 420000, change: 7.5 },
-      { symbol: 'STEP', name: 'Step Finance', price: 0.08, volume: 320000, change: -4.1 },
-      { symbol: 'COPE', name: 'Cope', price: 0.25, volume: 280000, change: 2.9 },
-      { symbol: 'ROPE', name: 'Rope Token', price: 0.003, volume: 180000, change: -8.2 },
-      { symbol: 'FIDA', name: 'Bonfida', price: 0.35, volume: 220000, change: 1.8 },
-      { symbol: 'MEDIA', name: 'Media Network', price: 0.15, volume: 160000, change: 4.3 },
-      { symbol: 'MAPS', name: 'Maps.me', price: 0.08, volume: 140000, change: -2.7 },
-      { symbol: 'TULIP', name: 'Tulip Protocol', price: 0.45, volume: 190000, change: 6.1 },
-      { symbol: 'SLIM', name: 'Solanium', price: 0.12, volume: 110000, change: -3.4 },
-      { symbol: 'PORT', name: 'Port Finance', price: 0.06, volume: 95000, change: 2.1 }
-    ];
 
-    return mockTokens.slice(0, limit).map((token, index) => ({
-      id: `${token.symbol.toLowerCase()}-meteora`,
-      symbol: token.symbol.toLowerCase(),
-      name: `${token.name} (Meteora)`,
-      image: token.symbol === 'SOL' ? 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png' :
-             token.symbol === 'USDC' ? 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png' :
-             token.symbol === 'RAY' ? 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png' :
-             'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-      current_price: token.price,
-      market_cap: token.price * 1000000, // Mock market cap
-      market_cap_rank: index + 1,
-      fully_diluted_valuation: token.price * 1200000,
-      total_volume: token.volume,
-      high_24h: token.price * 1.1,
-      low_24h: token.price * 0.9,
-      price_change_24h: token.price * (token.change / 100),
-      price_change_percentage_24h: token.change,
-      market_cap_change_24h: 0,
-      market_cap_change_percentage_24h: token.change,
-      circulating_supply: 1000000,
-      total_supply: 1200000,
-      max_supply: null,
-      ath: token.price * 1.5,
-      ath_change_percentage: -25,
-      ath_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      atl: token.price * 0.3,
-      atl_change_percentage: 200,
-      atl_date: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-      roi: null,
-      last_updated: new Date().toISOString(),
-      sparkline_in_7d: { price: [] },
-      sparkline_in_24h: { price: [] }
-    }));
-  }
 
   // Get Meteora coins formatted for the recommendation system
   async getMeteoraCoins(limit: number = 50): Promise<Coin[]> {
@@ -285,10 +246,8 @@ class MeteoraApiService {
       console.log(`Total pools fetched: ${allPools.length}`);
 
       if (allPools.length === 0) {
-        console.warn('No Meteora pools found from APIs, using mock data');
-        const mockCoins = this.createMockMeteoraCoins(limit);
-        cacheService.cacheMarketData(cacheKey, mockCoins);
-        return mockCoins;
+        console.error('No Meteora pools found from APIs - returning empty array');
+        return [];
       }
 
       // Convert pools to Coin format with quality filtering
@@ -298,6 +257,11 @@ class MeteoraApiService {
       allPools.forEach((pool: any) => {
         try {
           const coin = convertMeteoraPoolToCoin(pool);
+          
+          // Skip if conversion returned null (excluded tokens like stablecoins)
+          if (!coin) {
+            return;
+          }
           
           // Apply quality filters for high-volume, high-market-cap coins with significant price changes
           const hasValidPrice = coin.current_price > 0;
@@ -348,12 +312,9 @@ class MeteoraApiService {
 
       let finalCoins = coins.slice(0, limit);
       
-      // If we don't have enough coins, supplement with mock data
+      // Log if we have fewer coins than expected
       if (finalCoins.length < Math.min(10, limit)) {
-        console.warn(`Only got ${finalCoins.length} real Meteora coins, supplementing with mock data`);
-        const mockCoins = this.createMockMeteoraCoins(limit - finalCoins.length);
-        finalCoins.push(...mockCoins);
-        finalCoins = finalCoins.slice(0, limit);
+        console.warn(`Only got ${finalCoins.length} real Meteora coins (no mock data used)`);
       }
 
       console.log(`Returning ${finalCoins.length} Meteora coins`);
@@ -365,11 +326,9 @@ class MeteoraApiService {
     } catch (error) {
       console.error('Failed to fetch Meteora coins:', error);
       
-      // Fallback to mock data
-      console.log('Using mock Meteora data as fallback');
-      const mockCoins = this.createMockMeteoraCoins(limit);
-      cacheService.cacheMarketData(cacheKey, mockCoins);
-      return mockCoins;
+      // Return empty array instead of mock data
+      console.error('No fallback data - returning empty array');
+      return [];
     }
   }
 
@@ -387,11 +346,13 @@ class MeteoraApiService {
       }
 
       // Convert to coins format
-      const coins = trendingPools.slice(0, limit).map((pool: any, index: number) => {
-        const coin = convertMeteoraPoolToCoin(pool);
-        coin.market_cap_rank = index + 1;
-        return coin;
-      });
+      const coins = trendingPools.slice(0, limit)
+        .map((pool: any) => convertMeteoraPoolToCoin(pool))
+        .filter((coin): coin is Coin => coin !== null)
+        .map((coin, index) => {
+          coin.market_cap_rank = index + 1;
+          return coin;
+        });
 
       console.log(`Returning ${coins.length} trending Meteora coins`);
       return coins;
