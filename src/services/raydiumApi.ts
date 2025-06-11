@@ -88,6 +88,7 @@ const convertRaydiumPoolToCoin = (poolData: any, poolType: 'CLMM' | 'CP' = 'CP')
             tokenSymbol = tokens[1];
             price = price > 0 ? 1 / price : 0;
           } else {
+            // Both are similar type, prefer the one with higher volume or just use first
             tokenSymbol = tokens[0]; // Default to first token
           }
         }
@@ -117,8 +118,8 @@ const convertRaydiumPoolToCoin = (poolData: any, poolType: 'CLMM' | 'CP' = 'CP')
       return null;
     }
     
-    // Skip pools with extreme prices that might cause issues
-    if (price && (price < 1e-12 || price > 1e12)) {
+    // Skip pools with extreme prices that might cause issues (more lenient)
+    if (price && (price < 1e-15 || price > 1e15)) {
       console.log(`Skipping pool ${tokenSymbol} with extreme price: ${price}`);
       return null;
     }
@@ -221,7 +222,7 @@ class RaydiumApiService {
       
       // Sort by volume descending and take top pools
       const sortedPools = response.data
-        .filter((pool: any) => pool && parseFloat(pool.volume24h || '0') > 100) // Minimum $100 volume
+        .filter((pool: any) => pool && parseFloat(pool.volume24h || '0') > 10) // Minimum $10 volume (very low threshold)
         .sort((a: any, b: any) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0'))
         .slice(0, limit);
       
@@ -294,15 +295,48 @@ class RaydiumApiService {
       // Process CP pools
       if (cpPools.status === 'fulfilled') {
         console.log(`Processing ${cpPools.value.length} CP pools...`);
+        
+        let processedCount = 0;
+        let skippedStablecoin = 0;
+        let skippedExtreme = 0;
+        let skippedOther = 0;
+        let successCount = 0;
+        
         const cpCoins = cpPools.value
           .map((pool: any) => {
+            processedCount++;
             const coin = convertRaydiumPoolToCoin(pool, 'CP');
-            if (!coin && pool.volume24h > 100) {
-              console.log('Filtered out CP pool:', pool.name, 'Volume:', pool.volume24h);
+            
+            if (!coin) {
+              // Log why it was filtered
+              const tokens = (pool.name || '').split('/');
+              const stablecoins = ['USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'UST', 'USDH', 'TUSD', 'GUSD', 'PAX', 'SUSD'];
+              
+              if (tokens.length === 2) {
+                const token1IsStablecoin = stablecoins.includes(tokens[0].toUpperCase());
+                const token2IsStablecoin = stablecoins.includes(tokens[1].toUpperCase());
+                
+                if (token1IsStablecoin && token2IsStablecoin) {
+                  skippedStablecoin++;
+                  if (skippedStablecoin <= 3) console.log(`Skipped stablecoin pair: ${pool.name}`);
+                } else if (pool.price && (pool.price < 1e-12 || pool.price > 1e12)) {
+                  skippedExtreme++;
+                  if (skippedExtreme <= 3) console.log(`Skipped extreme price: ${pool.name} (${pool.price})`);
+                } else {
+                  skippedOther++;
+                  if (skippedOther <= 3) console.log(`Skipped other reason: ${pool.name} (vol: ${pool.volume24h}, liq: ${pool.liquidity})`);
+                }
+              }
+            } else {
+              successCount++;
+              if (successCount <= 3) console.log(`Successfully converted: ${pool.name} -> ${coin.symbol}`);
             }
+            
             return coin;
           })
           .filter((coin): coin is Coin => coin !== null);
+          
+        console.log(`CP Pool conversion stats: ${processedCount} processed, ${successCount} successful, ${skippedStablecoin} stablecoin, ${skippedExtreme} extreme price, ${skippedOther} other`);
         coins.push(...cpCoins);
         console.log(`Converted ${cpCoins.length} CP pools to coins`);
       }
