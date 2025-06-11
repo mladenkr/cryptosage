@@ -24,10 +24,16 @@ export interface EnhancedCoinData extends Coin {
   // Exchange and trading data
   tickers?: any[];
   
+  // Network and contract information
+  network?: string; // e.g., "Ethereum", "Binance Smart Chain", "Polygon", etc.
+  contract_address?: string; // Smart contract address
+  is_native_token?: boolean; // True for native tokens like ETH, BNB, MATIC
+  
   // Data quality and source tracking
   data_sources?: string[];
   data_quality_score?: number;
   last_updated_source?: string;
+  source_url?: string; // URL to the original source page
 }
 
 export class EnhancedDataSources {
@@ -156,9 +162,17 @@ export class EnhancedDataSources {
       price_change_percentage_30d: coin.price_change_percentage_30d_in_currency,
       circulating_supply_percentage: coin.max_supply ? 
         (coin.circulating_supply / coin.max_supply) * 100 : undefined,
+      
+      // Network and contract information
+      network: this.detectNetwork(coin),
+      contract_address: this.extractContractAddress(coin),
+      is_native_token: this.isNativeToken(coin.symbol, coin.id),
+      
+      // Source tracking
       data_sources: ['CoinGecko'],
       data_quality_score: this.calculateDataQuality(coin, 'coingecko'),
-      last_updated_source: 'CoinGecko'
+      last_updated_source: 'CoinGecko',
+      source_url: `https://www.coingecko.com/en/coins/${coin.id}`
     };
   }
 
@@ -198,9 +212,16 @@ export class EnhancedDataSources {
       last_updated: new Date().toISOString(),
       sparkline_in_7d: { price: [] },
       sparkline_in_24h: { price: [] },
+      
+      // Network and contract information
+      network: this.detectNetworkFromSymbol(coin.symbol, coin.id),
+      is_native_token: this.isNativeToken(coin.symbol, coin.id),
+      
+      // Source tracking
       data_sources: ['CoinPaprika'],
       data_quality_score: this.calculateDataQuality(coin, 'coinpaprika'),
-      last_updated_source: 'CoinPaprika'
+      last_updated_source: 'CoinPaprika',
+      source_url: `https://coinpaprika.com/coin/${coin.id}`
     };
   }
 
@@ -446,6 +467,110 @@ export class EnhancedDataSources {
       data_quality_score: this.calculateDataQuality(coin, 'coingecko'),
       last_updated_source: 'CoinGecko'
     };
+  }
+
+  // Helper methods for network and contract detection
+  private detectNetwork(coin: any): string | undefined {
+    // Common network detection based on coin data
+    const symbol = coin.symbol?.toLowerCase();
+    const id = coin.id?.toLowerCase();
+    const name = coin.name?.toLowerCase();
+    
+    // Native tokens
+    if (symbol === 'eth' || id === 'ethereum') return 'Ethereum';
+    if (symbol === 'bnb' || id === 'binancecoin') return 'BNB Chain';
+    if (symbol === 'matic' || id === 'matic-network') return 'Polygon';
+    if (symbol === 'avax' || id === 'avalanche-2') return 'Avalanche';
+    if (symbol === 'sol' || id === 'solana') return 'Solana';
+    if (symbol === 'ada' || id === 'cardano') return 'Cardano';
+    if (symbol === 'dot' || id === 'polkadot') return 'Polkadot';
+    if (symbol === 'atom' || id === 'cosmos') return 'Cosmos';
+    if (symbol === 'near' || id === 'near') return 'NEAR Protocol';
+    if (symbol === 'ftm' || id === 'fantom') return 'Fantom';
+    if (symbol === 'one' || id === 'harmony') return 'Harmony';
+    if (symbol === 'cro' || id === 'crypto-com-chain') return 'Cronos';
+    
+    // ERC-20 tokens (most common)
+    if (coin.platforms?.ethereum || coin.contract_address) return 'Ethereum';
+    
+    // BSC tokens
+    if (coin.platforms?.['binance-smart-chain']) return 'BNB Chain';
+    
+    // Polygon tokens
+    if (coin.platforms?.['polygon-pos']) return 'Polygon';
+    
+    // Other networks
+    if (coin.platforms?.avalanche) return 'Avalanche';
+    if (coin.platforms?.solana) return 'Solana';
+    if (coin.platforms?.fantom) return 'Fantom';
+    if (coin.platforms?.arbitrum) return 'Arbitrum';
+    if (coin.platforms?.optimism) return 'Optimism';
+    
+    return undefined;
+  }
+
+  private extractContractAddress(coin: any): string | undefined {
+    // Extract contract address from various sources
+    if (coin.contract_address) return coin.contract_address;
+    if (coin.platforms?.ethereum) return coin.platforms.ethereum;
+    if (coin.platforms?.['binance-smart-chain']) return coin.platforms['binance-smart-chain'];
+    if (coin.platforms?.['polygon-pos']) return coin.platforms['polygon-pos'];
+    if (coin.platforms?.avalanche) return coin.platforms.avalanche;
+    if (coin.platforms?.solana) return coin.platforms.solana;
+    if (coin.platforms?.fantom) return coin.platforms.fantom;
+    if (coin.platforms?.arbitrum) return coin.platforms.arbitrum;
+    if (coin.platforms?.optimism) return coin.platforms.optimism;
+    
+    return undefined;
+  }
+
+  private isNativeToken(symbol: string, id: string): boolean {
+    const nativeTokens = [
+      'btc', 'eth', 'bnb', 'matic', 'avax', 'sol', 'ada', 'dot', 
+      'atom', 'near', 'ftm', 'one', 'cro', 'ltc', 'bch', 'xrp',
+      'xlm', 'algo', 'egld', 'hbar', 'icp', 'vet', 'theta',
+      'fil', 'trx', 'eos', 'xtz', 'neo', 'waves', 'zil'
+    ];
+    
+    return nativeTokens.includes(symbol?.toLowerCase()) || 
+           nativeTokens.includes(id?.toLowerCase());
+  }
+
+  private detectNetworkFromSymbol(symbol: string, id: string): string | undefined {
+    // Common network detection based on coin data
+    
+    // Native tokens
+    if (symbol === 'eth' || id === 'ethereum') return 'Ethereum';
+    if (symbol === 'bnb' || id === 'binancecoin') return 'BNB Chain';
+    if (symbol === 'matic' || id === 'matic-network') return 'Polygon';
+    if (symbol === 'avax' || id === 'avalanche-2') return 'Avalanche';
+    if (symbol === 'sol' || id === 'solana') return 'Solana';
+    if (symbol === 'ada' || id === 'cardano') return 'Cardano';
+    if (symbol === 'dot' || id === 'polkadot') return 'Polkadot';
+    if (symbol === 'atom' || id === 'cosmos') return 'Cosmos';
+    if (symbol === 'near' || id === 'near') return 'NEAR Protocol';
+    if (symbol === 'ftm' || id === 'fantom') return 'Fantom';
+    if (symbol === 'one' || id === 'harmony') return 'Harmony';
+    if (symbol === 'cro' || id === 'crypto-com-chain') return 'Cronos';
+    
+    // ERC-20 tokens (most common)
+    const name = symbol?.toLowerCase();
+    if (name.includes('ethereum') || name.includes('matic') || name.includes('polygon')) return 'Ethereum';
+    
+    // BSC tokens
+    if (name.includes('binance') || name.includes('bnb')) return 'BNB Chain';
+    
+    // Polygon tokens
+    if (name.includes('matic') || name.includes('polygon')) return 'Polygon';
+    
+    // Other networks
+    if (name.includes('avalanche') || name.includes('avax')) return 'Avalanche';
+    if (name.includes('solana')) return 'Solana';
+    if (name.includes('fantom')) return 'Fantom';
+    if (name.includes('arbitrum')) return 'Arbitrum';
+    if (name.includes('optimism')) return 'Optimism';
+    
+    return undefined;
   }
 }
 

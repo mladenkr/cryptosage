@@ -3,6 +3,9 @@ import { enhancedDataSources, EnhancedCoinData } from './enhancedDataSources';
 
 // Enhanced analysis with multiple AI models
 export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
+  // Override coin to use EnhancedCoinData
+  coin: EnhancedCoinData;
+  
   // Multi-model predictions
   ensemblePrediction: number;
   modelConfidences: {

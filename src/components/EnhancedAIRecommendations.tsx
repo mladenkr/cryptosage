@@ -24,6 +24,10 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Tooltip,
+  Menu,
+  MenuItem,
+  Snackbar,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -37,6 +41,10 @@ import {
   Warning as WarningIcon,
   Error as ErrorIcon,
   ExpandMore as ExpandMoreIcon,
+  ContentCopy as ContentCopyIcon,
+  ShoppingCart as ShoppingCartIcon,
+  Launch as LaunchIcon,
+  AccountTree as NetworkIcon,
 
 } from '@mui/icons-material';
 import { EnhancedCryptoAnalysis, enhancedAIAnalysis } from '../services/enhancedAIAnalysis';
@@ -47,6 +55,7 @@ import {
   formatPercentage,
   getPercentageColor,
 } from '../utils/formatters';
+import { getDEXLinks, getNetworkExplorer, copyToClipboard, formatContractAddress } from '../utils/dexUtils';
 
 interface EnhancedAIRecommendationsProps {
   onCoinClick?: (coinId: string) => void;
@@ -61,6 +70,12 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [selectedAnalysis, setSelectedAnalysis] = useState<EnhancedCryptoAnalysis | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  
+  // New state for enhanced features
+  const [dexMenuAnchor, setDexMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedCoinForDex, setSelectedCoinForDex] = useState<EnhancedCryptoAnalysis | null>(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const loadRecommendations = useCallback(async () => {
     try {
@@ -91,10 +106,10 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     loadRecommendations();
   }, [loadRecommendations]);
 
-  const handleCoinClick = (coinId: string) => {
-    // Open CoinGecko page for the coin in a new tab
-    const coinGeckoUrl = `https://www.coingecko.com/en/coins/${coinId}`;
-    window.open(coinGeckoUrl, '_blank', 'noopener,noreferrer');
+  const handleCoinClick = (coinId: string, sourceUrl?: string) => {
+    // Smart source linking - use source URL if available, otherwise fallback to CoinGecko
+    const targetUrl = sourceUrl || `https://www.coingecko.com/en/coins/${coinId}`;
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleViewDetails = (analysis: EnhancedCryptoAnalysis) => {
@@ -105,6 +120,27 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setSelectedAnalysis(null);
+  };
+
+  const handleDexMenuOpen = (event: React.MouseEvent<HTMLElement>, analysis: EnhancedCryptoAnalysis) => {
+    event.stopPropagation();
+    setDexMenuAnchor(event.currentTarget);
+    setSelectedCoinForDex(analysis);
+  };
+
+  const handleDexMenuClose = () => {
+    setDexMenuAnchor(null);
+    setSelectedCoinForDex(null);
+  };
+
+  const handleCopyContract = async (contractAddress: string) => {
+    const success = await copyToClipboard(contractAddress);
+    setSnackbarMessage(success ? 'Contract address copied!' : 'Failed to copy address');
+    setSnackbarOpen(true);
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
   };
 
   const getRecommendationColor = (recommendation: string) => {
@@ -265,7 +301,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   : theme.palette.background.paper,
                 borderRadius: 3,
               }}
-              onClick={() => handleCoinClick(analysis.coin.id)}
+              onClick={() => handleCoinClick(analysis.coin.id, analysis.coin.source_url)}
             >
               <CardContent sx={{ p: 2 }}>
                 {/* Rank Badge */}
@@ -318,6 +354,37 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                         ? `$${(analysis.coin.market_cap / 1000000).toFixed(1)}M` 
                         : `$${(analysis.coin.market_cap / 1000).toFixed(0)}K`}
                     </Typography>
+                    
+                    {/* Network Information */}
+                    {analysis.coin.network && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                        <NetworkIcon sx={{ fontSize: '0.7rem', mr: 0.5, color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                          {analysis.coin.network}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* Contract Address */}
+                    {analysis.coin.contract_address && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', mr: 0.5 }}>
+                          {formatContractAddress(analysis.coin.contract_address)}
+                        </Typography>
+                        <Tooltip title="Copy contract address">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyContract(analysis.coin.contract_address!);
+                            }}
+                            sx={{ p: 0.25 }}
+                          >
+                            <ContentCopyIcon sx={{ fontSize: '0.7rem' }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    )}
                   </Box>
                 </Box>
 
@@ -484,6 +551,22 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                     }}
                   />
                 </Box>
+
+                {/* DEX Buy Button */}
+                {(analysis.coin.contract_address || analysis.coin.symbol) && (
+                  <Box sx={{ mb: 2 }}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      startIcon={<ShoppingCartIcon />}
+                      onClick={(e) => handleDexMenuOpen(e, analysis)}
+                      sx={{ fontSize: '0.75rem', py: 0.5 }}
+                    >
+                      Buy on DEX
+                    </Button>
+                  </Box>
+                )}
 
                 {/* Expandable Advanced Details */}
                 <Accordion 
@@ -717,7 +800,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
               <Button
                 variant="contained"
                 onClick={() => {
-                  handleCoinClick(selectedAnalysis.coin.id);
+                  handleCoinClick(selectedAnalysis.coin.id, selectedAnalysis.coin.source_url);
                   handleCloseDialog();
                 }}
               >
@@ -728,6 +811,65 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
         )}
       </Dialog>
     </Box>
+
+    {/* DEX Menu */}
+    <Menu
+      anchorEl={dexMenuAnchor}
+      open={Boolean(dexMenuAnchor)}
+      onClose={handleDexMenuClose}
+      PaperProps={{
+        sx: { minWidth: 200 }
+      }}
+    >
+      {selectedCoinForDex && getDEXLinks(
+        selectedCoinForDex.coin.contract_address,
+        selectedCoinForDex.coin.network,
+        selectedCoinForDex.coin.symbol
+      ).map((dexLink, index) => (
+        <MenuItem
+          key={index}
+          onClick={() => {
+            window.open(dexLink.url, '_blank', 'noopener,noreferrer');
+            handleDexMenuClose();
+          }}
+        >
+          <LaunchIcon sx={{ mr: 1, fontSize: '1rem' }} />
+          {dexLink.name}
+        </MenuItem>
+      ))}
+      
+      {/* Network Explorer Link */}
+      {selectedCoinForDex?.coin.contract_address && selectedCoinForDex?.coin.network && (
+        <>
+          <MenuItem divider />
+          <MenuItem
+            onClick={() => {
+              const explorerUrl = getNetworkExplorer(
+                selectedCoinForDex.coin.contract_address!,
+                selectedCoinForDex.coin.network
+              );
+              if (explorerUrl) {
+                window.open(explorerUrl, '_blank', 'noopener,noreferrer');
+              }
+              handleDexMenuClose();
+            }}
+          >
+            <InfoIcon sx={{ mr: 1, fontSize: '1rem' }} />
+            View on Explorer
+          </MenuItem>
+        </>
+      )}
+    </Menu>
+
+    {/* Snackbar for notifications */}
+    <Snackbar
+      open={snackbarOpen}
+      autoHideDuration={3000}
+      onClose={handleSnackbarClose}
+      message={snackbarMessage}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+    />
+
     </Container>
   );
 };
