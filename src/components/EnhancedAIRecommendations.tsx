@@ -581,25 +581,55 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   </AccordionSummary>
                   <AccordionDetails sx={{ px: 0, pt: 0 }}>
                     {/* Multi-timeframe Predictions */}
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontSize: '0.8rem' }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontSize: '0.85rem', fontWeight: 600, mb: 1.5 }}>
                       Multi-timeframe Predictions
                     </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
+                    <Box sx={{ mb: 3 }}>
                       {Object.entries(analysis.predictions).map(([timeframe, value]) => (
-                        <Box key={timeframe} sx={{ textAlign: 'center', p: 0.5, backgroundColor: theme.palette.grey[50], borderRadius: 1 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            {timeframe}
-                          </Typography>
-                          <Typography
-                            variant="caption"
+                        <Box 
+                          key={timeframe} 
+                          sx={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            p: 1.5, 
+                            mb: 1,
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', 
+                            borderRadius: 2,
+                            border: `1px solid ${theme.palette.divider}`,
+                            '&:hover': {
+                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                            }
+                          }}
+                        >
+                          <Typography 
+                            variant="body2" 
                             sx={{ 
-                              display: 'block',
-                              fontWeight: 600,
-                              color: getPercentageColor(value)
+                              fontWeight: 500,
+                              color: theme.palette.text.primary,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px'
                             }}
                           >
-                            {value.toFixed(1)}%
+                            {timeframe}
                           </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{ 
+                                fontWeight: 700,
+                                fontSize: '1rem',
+                                color: getPercentageColor(value)
+                              }}
+                            >
+                              {value > 0 ? '+' : ''}{value.toFixed(1)}%
+                            </Typography>
+                            {value > 0 ? (
+                              <TrendingUpIcon sx={{ fontSize: '1rem', color: getPercentageColor(value) }} />
+                            ) : value < 0 ? (
+                              <TrendingDownIcon sx={{ fontSize: '1rem', color: getPercentageColor(value) }} />
+                            ) : null}
+                          </Box>
                         </Box>
                       ))}
                     </Box>
