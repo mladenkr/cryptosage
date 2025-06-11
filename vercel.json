@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "cryptosage",
   "builds": [
     {
       "src": "package.json",

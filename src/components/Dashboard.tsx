@@ -5,7 +5,7 @@ import {
   Typography,
   Box,
 } from '@mui/material';
-import AIRecommendations from './SimpleAIRecommendations';
+import AIRecommendations from './AIRecommendations';
 import PerformanceTracker from './PerformanceTracker';
 import DataSourceIndicator from './DataSourceIndicator';
 import { useTheme } from '../contexts/ThemeContext';
