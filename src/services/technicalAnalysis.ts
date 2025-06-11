@@ -1,7 +1,7 @@
 import { SMA, EMA, RSI, MACD, BollingerBands, Stochastic } from 'technicalindicators';
 import { Coin } from '../types';
 import { coinGeckoApi } from './api';
-import { meteoraApi } from './meteoraApi';
+import { raydiumApiService } from './raydiumApi';
 
 export interface TechnicalIndicators {
   rsi: number;
@@ -573,40 +573,40 @@ export class CryptoAnalyzer {
 
   public async getTop10Recommendations(): Promise<CryptoAnalysis[]> {
     try {
-      console.log('TechnicalAnalysis: Starting getTop10Recommendations from Meteora DEX...');
+      console.log('TechnicalAnalysis: Starting getTop10Recommendations from Raydium DEX...');
       
-      // Get cryptocurrencies from Meteora DEX on Solana
-      console.log('TechnicalAnalysis: Fetching Meteora DEX tokens...');
+      // Get cryptocurrencies from Raydium DEX on Solana
+      console.log('TechnicalAnalysis: Fetching Raydium DEX tokens...');
       
-      const meteoraCoins = await meteoraApi.getMeteoraCoins(100); // Get up to 100 Meteora tokens
-      console.log(`TechnicalAnalysis: Fetched ${meteoraCoins.length} Meteora tokens`);
+      const raydiumCoins = await raydiumApiService.getRaydiumCoins(100); // Get up to 100 Raydium tokens
+      console.log(`TechnicalAnalysis: Fetched ${raydiumCoins.length} Raydium tokens`);
       
-      if (meteoraCoins.length > 0) {
-        console.log('Sample Meteora token:', {
-          name: meteoraCoins[0].name,
-          symbol: meteoraCoins[0].symbol,
-          price: meteoraCoins[0].current_price,
-          volume: meteoraCoins[0].total_volume,
-          marketCap: meteoraCoins[0].market_cap
+      if (raydiumCoins.length > 0) {
+        console.log('Sample Raydium token:', {
+          name: raydiumCoins[0].name,
+          symbol: raydiumCoins[0].symbol,
+          price: raydiumCoins[0].current_price,
+          volume: raydiumCoins[0].total_volume,
+          marketCap: raydiumCoins[0].market_cap
         });
       }
 
-      // If we have no Meteora coins, try to get more with different parameters
-      if (meteoraCoins.length === 0) {
-        console.warn('TechnicalAnalysis: No Meteora tokens fetched, trying alternative approach...');
+      // If we have no Raydium coins, try to get more with different parameters
+      if (raydiumCoins.length === 0) {
+        console.warn('TechnicalAnalysis: No Raydium tokens fetched, trying alternative approach...');
         
         try {
-          // Try to get Meteora coins with more relaxed parameters
-          const alternativeMeteoraCoins = await meteoraApi.getMeteoraCoins(200); // Try to get more coins
-          console.log(`TechnicalAnalysis: Alternative fetch got ${alternativeMeteoraCoins.length} Meteora tokens`);
+          // Try to get Raydium coins with more relaxed parameters
+          const alternativeRaydiumCoins = await raydiumApiService.getRaydiumCoins(200); // Try to get more coins
+          console.log(`TechnicalAnalysis: Alternative fetch got ${alternativeRaydiumCoins.length} Raydium tokens`);
           
-          if (alternativeMeteoraCoins.length > 0) {
-            // Use the alternative Meteora coins
-            const validCoins = alternativeMeteoraCoins.filter(coin => {
+          if (alternativeRaydiumCoins.length > 0) {
+            // Use the alternative Raydium coins
+            const validCoins = alternativeRaydiumCoins.filter((coin: Coin) => {
               return coin.current_price > 0 && coin.total_volume > 0;
             }).slice(0, 50); // Use more coins for analysis
             
-            console.log(`TechnicalAnalysis: Using ${validCoins.length} alternative Meteora tokens for analysis`);
+            console.log(`TechnicalAnalysis: Using ${validCoins.length} alternative Raydium tokens for analysis`);
             
             // Analyze with simplified analysis to ensure we get recommendations
             const analyses: CryptoAnalysis[] = [];
@@ -615,7 +615,7 @@ export class CryptoAnalyzer {
               try {
                 const analysis = await this.createSimplifiedAnalysis(coin);
                 analyses.push(analysis);
-                console.log(`TechnicalAnalysis: Created analysis for Meteora token ${coin.name}`);
+                console.log(`TechnicalAnalysis: Created analysis for Raydium token ${coin.name}`);
               } catch (error: any) {
                 console.warn(`TechnicalAnalysis: Failed to analyze ${coin.name}:`, error.message);
               }
@@ -624,12 +624,12 @@ export class CryptoAnalyzer {
             }
             
             if (analyses.length >= 10) {
-              console.log(`TechnicalAnalysis: Successfully created ${analyses.length} analyses from alternative Meteora fetch`);
+              console.log(`TechnicalAnalysis: Successfully created ${analyses.length} analyses from alternative Raydium fetch`);
               return analyses.slice(0, 10);
             }
           }
         } catch (alternativeError) {
-          console.error('TechnicalAnalysis: Alternative Meteora fetch also failed:', alternativeError);
+          console.error('TechnicalAnalysis: Alternative Raydium fetch also failed:', alternativeError);
         }
         
         // Last resort: create a minimal fallback with current SOL price
@@ -640,9 +640,9 @@ export class CryptoAnalyzer {
           const currentSolPrice = solPriceData.solana?.usd || 166; // Fallback to ~$166 if API fails
           
           const fallbackCoin = {
-            id: 'solana-meteora-fallback',
+            id: 'solana-raydium-fallback',
             symbol: 'sol',
-            name: 'Solana (Meteora Fallback)',
+            name: 'Solana (Raydium Fallback)',
             image: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
             current_price: currentSolPrice,
             market_cap: currentSolPrice * 1000000,
@@ -690,7 +690,7 @@ export class CryptoAnalyzer {
               },
               stochastic: { k: 60, d: 55 }
             },
-            signals: ['Meteora API Unavailable - Fallback Mode'],
+            signals: ['Raydium API Unavailable - Fallback Mode'],
             recommendation: 'NEUTRAL' as const,
             riskLevel: 'MEDIUM' as const,
             priceTarget: currentSolPrice * 1.02,
@@ -708,7 +708,7 @@ export class CryptoAnalyzer {
       }
 
       // Filter out coins with insufficient data for analysis
-      const validCoins = meteoraCoins.filter(coin => {
+      const validCoins = raydiumCoins.filter((coin: Coin) => {
         // Basic validation for analysis
         if (!coin.current_price || coin.current_price <= 0) {
           console.log(`TechnicalAnalysis: Filtering out ${coin.name} - invalid price: ${coin.current_price}`);
@@ -723,11 +723,11 @@ export class CryptoAnalyzer {
         return true;
       });
 
-      console.log(`TechnicalAnalysis: Analyzing ${validCoins.length} Meteora tokens after filtering...`);
+      console.log(`TechnicalAnalysis: Analyzing ${validCoins.length} Raydium tokens after filtering...`);
 
       // If no valid coins after filtering, use all available coins
-      const coinsToAnalyze = validCoins.length > 0 ? validCoins : meteoraCoins.slice(0, 20);
-      console.log(`TechnicalAnalysis: Using ${coinsToAnalyze.length} Meteora tokens for analysis`);
+      const coinsToAnalyze = validCoins.length > 0 ? validCoins : raydiumCoins.slice(0, 20);
+      console.log(`TechnicalAnalysis: Using ${coinsToAnalyze.length} Raydium tokens for analysis`);
 
       // Analyze all coins
       const analyses: CryptoAnalysis[] = [];
@@ -773,7 +773,7 @@ export class CryptoAnalyzer {
       // Ensure we always have exactly 10 recommendations by creating fallback analyses if needed
       if (analyses.length < 10) {
         console.warn(`TechnicalAnalysis: Only ${analyses.length} successful analyses, creating fallback recommendations to reach 10`);
-        const fallbackCoins = coinsToAnalyze.slice(0, Math.max(20, coinsToAnalyze.length)); // Use more Meteora tokens for fallback
+        const fallbackCoins = coinsToAnalyze.slice(0, Math.max(20, coinsToAnalyze.length)); // Use more Raydium tokens for fallback
         
         for (const coin of fallbackCoins) {
           if (analyses.find(a => a.coin.id === coin.id)) continue; // Skip if already analyzed
@@ -804,7 +804,7 @@ export class CryptoAnalyzer {
               },
               stochastic: { k: 50, d: 50 }
             },
-            signals: ['Meteora DEX Analysis'],
+            signals: ['Raydium DEX Analysis'],
             recommendation,
             riskLevel: coin.total_volume > 100000 ? 'LOW' : coin.total_volume > 10000 ? 'MEDIUM' : 'HIGH',
             priceTarget: coin.current_price * (1 + predicted24hChange / 100),
@@ -813,7 +813,7 @@ export class CryptoAnalyzer {
           };
           
           analyses.push(fallbackAnalysis);
-          console.log(`TechnicalAnalysis: Created fallback analysis for Meteora token ${coin.name} (${analyses.length}/10)`);
+          console.log(`TechnicalAnalysis: Created fallback analysis for Raydium token ${coin.name} (${analyses.length}/10)`);
         }
       }
 
@@ -832,31 +832,31 @@ export class CryptoAnalyzer {
       
       // Final safeguard: if we still don't have 10 recommendations, try to get more Meteora tokens with even more relaxed filters
       if (finalRecommendations.length < 10) {
-        console.warn(`TechnicalAnalysis: Still only have ${finalRecommendations.length} recommendations, trying to get more Meteora tokens`);
+        console.warn(`TechnicalAnalysis: Still only have ${finalRecommendations.length} recommendations, trying to get more Raydium tokens`);
         try {
-          // Try to get more Meteora tokens with very relaxed filters
-          const moreMeteoraCoins = await meteoraApi.getMeteoraCoins(500); // Try to get many more coins
+          // Try to get more Raydium tokens with very relaxed filters
+          const moreRaydiumCoins = await raydiumApiService.getRaydiumCoins(500); // Try to get many more coins
           const existingCoinIds = new Set(finalRecommendations.map(r => r.coin.id));
           
-          for (const coin of moreMeteoraCoins) {
+          for (const coin of moreRaydiumCoins) {
             if (finalRecommendations.length >= 10) break;
             if (existingCoinIds.has(coin.id)) continue;
             
-            // Use simplified analysis for additional Meteora coins
+            // Use simplified analysis for additional Raydium coins
             const analysis = await this.createSimplifiedAnalysis(coin);
-            analysis.signals = ['Extended Meteora Analysis'];
+            analysis.signals = ['Extended Raydium Analysis'];
             finalRecommendations.push(analysis);
-            console.log(`TechnicalAnalysis: Added additional Meteora recommendation for ${coin.name} (${finalRecommendations.length}/10)`);
+            console.log(`TechnicalAnalysis: Added additional Raydium recommendation for ${coin.name} (${finalRecommendations.length}/10)`);
           }
         } catch (paddingError) {
-          console.error('TechnicalAnalysis: Failed to get additional Meteora tokens:', paddingError);
+          console.error('TechnicalAnalysis: Failed to get additional Raydium tokens:', paddingError);
           
-          // Last resort: create synthetic Meteora-style recommendations
+          // Last resort: create synthetic Raydium-style recommendations
           while (finalRecommendations.length < 10) {
             const syntheticCoin = {
-              id: `meteora-synthetic-${finalRecommendations.length}`,
+              id: `raydium-synthetic-${finalRecommendations.length}`,
               symbol: 'sol',
-              name: `Solana Token ${finalRecommendations.length} (Meteora Fallback)`,
+              name: `Solana Token ${finalRecommendations.length} (Raydium Fallback)`,
               image: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
               current_price: 166 + (finalRecommendations.length * 2),
               market_cap: 166000000 + (finalRecommendations.length * 1000000),
@@ -885,9 +885,9 @@ export class CryptoAnalyzer {
             };
             
             const syntheticAnalysis = await this.createSimplifiedAnalysis(syntheticCoin);
-            syntheticAnalysis.signals = ['Meteora Synthetic Fallback'];
+            syntheticAnalysis.signals = ['Raydium Synthetic Fallback'];
             finalRecommendations.push(syntheticAnalysis);
-            console.log(`TechnicalAnalysis: Added Meteora synthetic recommendation ${finalRecommendations.length}/10`);
+            console.log(`TechnicalAnalysis: Added Raydium synthetic recommendation ${finalRecommendations.length}/10`);
           }
         }
       }
@@ -898,12 +898,12 @@ export class CryptoAnalyzer {
     } catch (error) {
       console.error('TechnicalAnalysis: Error generating recommendations:', error);
       
-      // Last resort fallback - try to get exactly 10 Meteora tokens and create basic recommendations
+      // Last resort fallback - try to get exactly 10 Raydium tokens and create basic recommendations
       try {
-        console.log('TechnicalAnalysis: Attempting last resort fallback with Meteora tokens...');
-        const fallbackCoins = await meteoraApi.getMeteoraCoins(15); // Get 15 Meteora tokens to ensure we have 10 after any filtering
+        console.log('TechnicalAnalysis: Attempting last resort fallback with Raydium tokens...');
+        const fallbackCoins = await raydiumApiService.getRaydiumCoins(15); // Get 15 Raydium tokens to ensure we have 10 after any filtering
         
-        const fallbackAnalyses: CryptoAnalysis[] = fallbackCoins.slice(0, 10).map(coin => {
+        const fallbackAnalyses: CryptoAnalysis[] = fallbackCoins.slice(0, 10).map((coin: Coin) => {
           const predicted24hChange = coin.price_change_percentage_24h * 0.3; // Very conservative
           const recommendation = predicted24hChange > 2 ? 'LONG' : predicted24hChange < -2 ? 'SHORT' : 'NEUTRAL';
           const overallScore = Math.max(30, Math.min(70, 50 + coin.price_change_percentage_24h));
@@ -928,7 +928,7 @@ export class CryptoAnalyzer {
               },
               stochastic: { k: 50, d: 50 }
             },
-            signals: ['Meteora Fallback Analysis'],
+            signals: ['Raydium Fallback Analysis'],
             recommendation,
             riskLevel: coin.total_volume > 100000 ? 'LOW' : coin.total_volume > 10000 ? 'MEDIUM' : 'HIGH',
             priceTarget: coin.current_price * (1 + predicted24hChange / 100),
@@ -937,7 +937,7 @@ export class CryptoAnalyzer {
           };
         });
         
-        console.log(`TechnicalAnalysis: Created exactly ${fallbackAnalyses.length} Meteora fallback recommendations`);
+        console.log(`TechnicalAnalysis: Created exactly ${fallbackAnalyses.length} Raydium fallback recommendations`);
         return fallbackAnalyses;
       } catch (fallbackError) {
         console.error('TechnicalAnalysis: Even fallback failed:', fallbackError);

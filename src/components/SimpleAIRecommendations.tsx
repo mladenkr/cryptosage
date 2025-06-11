@@ -20,7 +20,7 @@ const SimpleAIRecommendations: React.FC<SimpleAIRecommendationsProps> = ({ onCoi
         
         <Typography variant="body1" color="text.secondary">
           This is a simplified version to test if the app loads correctly.
-          Meteora DEX data updates automatically every hour.
+          Raydium DEX data updates automatically every hour.
         </Typography>
         
         <Typography variant="body2" sx={{ mt: 2 }}>

@@ -189,13 +189,20 @@ class CacheService {
   // Get cached market data (respects hourly schedule)
   getCachedMarketData(key: string): any | null {
     try {
+      // Clear old Meteora cache keys
+      if (key.includes('meteora_coins')) {
+        console.log('Detected old Meteora cache key, clearing to force fresh Raydium fetch');
+        localStorage.removeItem(`${this.MARKET_DATA_KEY}_${key}`);
+        return null;
+      }
+      
       const cached = localStorage.getItem(`${this.MARKET_DATA_KEY}_${key}`);
       if (!cached) return null;
 
       const data = JSON.parse(cached);
       
-      // Check if this is old mock data for Meteora coins
-      if (key.includes('meteora_coins') && Array.isArray(data.data)) {
+      // Check if this is old mock data for Raydium coins
+      if (key.includes('raydium_coins') && Array.isArray(data.data)) {
         const hasOldMockData = data.data.some((coin: any) => 
           (coin.symbol === 'sol' && Math.abs(coin.current_price - 95.50) < 0.01) ||
           coin.name?.includes('(Meteora)') ||
