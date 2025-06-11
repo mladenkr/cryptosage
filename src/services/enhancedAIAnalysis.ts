@@ -213,16 +213,53 @@ export class EnhancedAIAnalysis {
   // Multi-timeframe predictions
   private calculatePredictions(coin: EnhancedCoinData, overallScore: number): { '1h': number; '4h': number; '24h': number; '7d': number } {
     const baseVolatility = Math.abs(coin.price_change_percentage_24h || 0) / 24; // Hourly volatility
-    const momentum = coin.price_change_percentage_24h || 0;
+    const momentum24h = coin.price_change_percentage_24h || 0;
+    const momentum7d = coin.price_change_percentage_7d || 0;
     
-    // Score influence on predictions
-    const scoreInfluence = (overallScore - 50) / 50; // -1 to 1
+    // Score influence on predictions (more aggressive)
+    const scoreInfluence = (overallScore - 50) / 25; // -2 to 2 (more range)
+    
+    // Market cycle influence
+    let cycleMultiplier = 1;
+    const cyclePosition = this.determineMarketCyclePosition(coin);
+    switch (cyclePosition) {
+      case 'MARKUP': cycleMultiplier = 1.3; break;
+      case 'ACCUMULATION': cycleMultiplier = 1.1; break;
+      case 'DISTRIBUTION': cycleMultiplier = 0.8; break;
+      case 'MARKDOWN': cycleMultiplier = 0.7; break;
+    }
+    
+    // Volume influence (high volume = more momentum)
+    const volumeInfluence = Math.min(1.5, coin.total_volume / coin.market_cap * 10);
+    
+    // ATH distance influence (far from ATH = more upside potential)
+    const athDistance = coin.ath ? (coin.ath - coin.current_price) / coin.ath : 0.5;
+    const athInfluence = athDistance > 0.5 ? 1.2 : 0.9;
     
     return {
-      '1h': this.capPrediction(scoreInfluence * 0.5 + momentum * 0.02 + (Math.random() - 0.5) * baseVolatility),
-      '4h': this.capPrediction(scoreInfluence * 1.5 + momentum * 0.08 + (Math.random() - 0.5) * baseVolatility * 2),
-      '24h': this.capPrediction(scoreInfluence * 3 + momentum * 0.2 + (Math.random() - 0.5) * baseVolatility * 4),
-      '7d': this.capPrediction(scoreInfluence * 8 + momentum * 0.3 + (Math.random() - 0.5) * baseVolatility * 8)
+      '1h': this.capPrediction(
+        scoreInfluence * 0.8 + 
+        momentum24h * 0.03 + 
+        (Math.random() - 0.5) * baseVolatility * 2
+      ),
+      '4h': this.capPrediction(
+        scoreInfluence * 2 * cycleMultiplier + 
+        momentum24h * 0.1 + 
+        momentum7d * 0.02 +
+        (Math.random() - 0.5) * baseVolatility * 3
+      ),
+      '24h': this.capPrediction(
+        scoreInfluence * 4 * cycleMultiplier * volumeInfluence * athInfluence + 
+        momentum24h * 0.3 + 
+        momentum7d * 0.1 +
+        (Math.random() - 0.5) * baseVolatility * 5
+      ),
+      '7d': this.capPrediction(
+        scoreInfluence * 10 * cycleMultiplier * athInfluence + 
+        momentum7d * 0.4 + 
+        momentum24h * 0.2 +
+        (Math.random() - 0.5) * baseVolatility * 8
+      )
     };
   }
   
@@ -385,15 +422,15 @@ export class EnhancedAIAnalysis {
         }
       }
       
-      // Sort by ensemble prediction and overall score
+      // Sort by AI Score as the dominant factor, then by predictions
       const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary sort: predicted 24h change
-        const predictionDiff = b.predictions['24h'] - a.predictions['24h'];
-        if (Math.abs(predictionDiff) > 0.5) return predictionDiff;
-        
-        // Secondary sort: overall score
+        // Primary sort: AI Score (overallScore) - this should be the dominant factor
         const scoreDiff = b.overallScore - a.overallScore;
-        if (Math.abs(scoreDiff) > 2) return scoreDiff;
+        if (Math.abs(scoreDiff) > 1) return scoreDiff;
+        
+        // Secondary sort: predicted 24h change for coins with similar scores
+        const predictionDiff = b.predictions['24h'] - a.predictions['24h'];
+        if (Math.abs(predictionDiff) > 0.3) return predictionDiff;
         
         // Tertiary sort: liquidity score (prefer more liquid assets)
         return b.liquidityScore - a.liquidityScore;
@@ -423,8 +460,19 @@ export class EnhancedAIAnalysis {
   }
   
   private getRecommendation(predicted24hChange: number, overallScore: number): 'LONG' | 'NEUTRAL' | 'SHORT' {
-    if (predicted24hChange > 3 && overallScore > 65) return 'LONG';
-    if (predicted24hChange < -3 && overallScore < 45) return 'SHORT';
+    // More balanced thresholds for better signal distribution
+    
+    // LONG signals - more generous thresholds
+    if (overallScore >= 70) return 'LONG'; // High AI score = LONG
+    if (overallScore >= 60 && predicted24hChange > 1) return 'LONG'; // Good score + positive prediction
+    if (overallScore >= 55 && predicted24hChange > 2) return 'LONG'; // Decent score + strong prediction
+    
+    // SHORT signals - now actually possible to get
+    if (overallScore <= 35) return 'SHORT'; // Low AI score = SHORT
+    if (overallScore <= 45 && predicted24hChange < -1) return 'SHORT'; // Poor score + negative prediction
+    if (overallScore <= 50 && predicted24hChange < -2) return 'SHORT'; // Mediocre score + strong negative prediction
+    
+    // NEUTRAL for everything in between
     return 'NEUTRAL';
   }
   
