@@ -192,27 +192,40 @@ class MEXCApiService {
 
   // Get 24hr ticker statistics for all symbols
   async getAll24hrTickers(): Promise<MEXCTicker24hr[]> {
-    const cacheKey = 'mexc_24hr_tickers';
+    // const cacheKey = 'mexc_24hr_tickers'; // Disabled for debugging
     
-    // Check cache first
-    const cached = cacheService.getCachedMarketData(cacheKey);
-    if (cached && Date.now() - cached.timestamp < MEXC_CACHE_DURATION) {
-      return cached;
-    }
+    // Disable cache for debugging
+    console.log('🔄 Fetching fresh 24hr tickers (cache disabled)');
+    // const cached = cacheService.getCachedMarketData(cacheKey);
+    // if (cached && Date.now() - cached.timestamp < MEXC_CACHE_DURATION) {
+    //   return cached;
+    // }
 
     try {
+      console.log('📡 Making MEXC API request to /ticker/24hr...');
       const tickers = await this.makeRequest<MEXCTicker24hr[]>('/ticker/24hr');
+      console.log(`📊 Raw API response: ${tickers.length} total tickers`);
       
       // Filter for USDT pairs only
       const usdtTickers = tickers.filter(t => t.symbol.endsWith('USDT'));
+      console.log(`💰 Filtered to ${usdtTickers.length} USDT pairs`);
       
-      // Cache the result using market data cache
-      cacheService.cacheMarketData(cacheKey, usdtTickers);
+      if (usdtTickers.length === 0) {
+        console.error('❌ No USDT pairs found in MEXC API response');
+        throw new Error('No USDT trading pairs found in MEXC API response');
+      }
       
-      console.log(`Fetched ${usdtTickers.length} MEXC 24hr tickers`);
+      // Cache the result using market data cache (disabled for debugging)
+      // cacheService.cacheMarketData(cacheKey, usdtTickers);
+      
+      console.log(`✅ Successfully fetched ${usdtTickers.length} MEXC 24hr tickers`);
       return usdtTickers;
     } catch (error) {
-      console.error('Failed to fetch MEXC 24hr tickers:', error);
+      console.error('❌ CRITICAL: Failed to fetch MEXC 24hr tickers:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       return [];
     }
   }
@@ -349,13 +362,23 @@ class MEXCApiService {
     // }
 
     try {
+      console.log('🚀 MEXC API: Starting getAllMEXCCoins...');
       console.log('Fetching all MEXC USDT trading pairs as primary coin list...');
       
       // Initialize symbol mappings first
+      console.log('📋 Initializing MEXC symbol mappings...');
       await this.initializeSymbolMappings();
+      console.log('✅ Symbol mappings initialized');
       
       // Get all 24hr tickers for USDT pairs
+      console.log('📊 Fetching 24hr tickers from MEXC...');
       const tickers = await this.getAll24hrTickers();
+      console.log(`📈 Received ${tickers.length} tickers from MEXC API`);
+      
+      if (tickers.length === 0) {
+        console.error('❌ MEXC API returned no tickers - this is the root cause');
+        throw new Error('MEXC API returned no trading data. Please check API connectivity.');
+      }
       
       // Filter out stablecoins first before processing
       const filteredTickers = tickers.filter(ticker => {
@@ -450,6 +473,12 @@ class MEXCApiService {
       });
       
       console.log(`🔍 Filtered out ${tickers.length - filteredTickers.length} stablecoins from ${tickers.length} total tickers`);
+      console.log(`📊 Processing ${filteredTickers.length} valid trading pairs`);
+      
+      if (filteredTickers.length === 0) {
+        console.error('❌ No valid trading pairs after filtering - all were stablecoins/wrapped tokens');
+        throw new Error('No valid trading pairs found after filtering stablecoins and wrapped tokens');
+      }
       
       // Convert MEXC tickers to Coin format
       const mexcCoins: Coin[] = filteredTickers.map((ticker, index) => {
@@ -509,6 +538,8 @@ class MEXCApiService {
         };
       });
 
+      console.log(`💰 Created ${mexcCoins.length} coin objects from MEXC data`);
+
       // Enhanced sorting: Primary by volume, secondary by quote volume for better ranking
       mexcCoins.sort((a, b) => {
         // Primary sort: Total volume (USDT volume)
@@ -560,13 +591,26 @@ class MEXCApiService {
       
       console.log(`🎯 Final MEXC API Results: ${filteredCoins.length} coins (filtered from ${mexcCoins.length} after volume/stability checks)`);
       
+      if (filteredCoins.length === 0) {
+        console.error('❌ No coins passed final filtering - all were filtered out by volume/stability checks');
+        throw new Error('No valid coins found after applying volume and stability filters');
+      }
+      
       // Cache the results (disabled for debugging)
       // cacheService.cacheMarketData(cacheKey, filteredCoins);
       
+      console.log(`✅ MEXC API SUCCESS: Returning ${filteredCoins.length} valid coins`);
       return filteredCoins;
       
     } catch (error) {
-      console.error('Failed to fetch all MEXC coins:', error);
+      console.error('❌ MEXC API CRITICAL ERROR in getAllMEXCCoins:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+      
+      // Return empty array instead of throwing to prevent app crash
+      console.log('🔄 Returning empty array to prevent app crash');
       return [];
     }
   }

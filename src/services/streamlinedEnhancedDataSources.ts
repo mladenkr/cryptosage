@@ -86,6 +86,53 @@ export class StreamlinedEnhancedDataSources {
            nativeTokens.includes(id?.toLowerCase());
   }
 
+  // Stablecoin detection method (same as in enhancedAIAnalysis)
+  private isStablecoin(coin: EnhancedCoinData): boolean {
+    const symbol = coin.symbol.toLowerCase();
+    const name = coin.name.toLowerCase();
+    
+    // Direct stablecoin symbols
+    const stablecoinSymbols = [
+      'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 'gusd',
+      'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
+      'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
+      'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
+      'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk',
+      'usdj', 'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1',
+      'pyusd', 'usdm', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy',
+      'usdr', 'usdb', 'usdh', 'usdq', 'usde', 'tusd'
+    ];
+    
+    if (stablecoinSymbols.includes(symbol)) {
+      return true;
+    }
+    
+    // Name-based detection
+    const stablecoinNames = [
+      'tether', 'usd coin', 'binance usd', 'dai', 'trueusd', 'frax', 'liquity usd',
+      'usdd', 'pax dollar', 'gemini dollar', 'huobi usd', 'synthetix usd', 'celo dollar',
+      'origin dollar', 'magic internet money', 'fei protocol', 'reflexer ungovernance',
+      'euro coin', 'stasis eurs', 'tether eurt', 'paxos gold', 'tether gold'
+    ];
+    
+    if (stablecoinNames.some(stableName => name.includes(stableName))) {
+      return true;
+    }
+    
+    // Price stability check - if price is very close to $1 and has minimal volatility
+    if (coin.current_price >= 0.95 && coin.current_price <= 1.05) {
+      const volatility24h = Math.abs(coin.price_change_percentage_24h || 0);
+      const volatility7d = Math.abs(coin.price_change_percentage_7d || 0);
+      
+      // If both 24h and 7d volatility are under 2%, likely a stablecoin
+      if (volatility24h < 2 && volatility7d < 5) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   // Main method to get streamlined enhanced coin list with fallback
   async getStreamlinedEnhancedCoinList(limit: number = 100): Promise<EnhancedCoinData[]> {
     console.log(`🚀 StreamlinedEnhancedDataSources: Fetching ${limit} coins...`);
@@ -126,9 +173,9 @@ export class StreamlinedEnhancedDataSources {
     // Convert to enhanced coin data
     const enhancedCoins = coins.map(coin => this.convertToEnhancedCoinData(coin));
     
-    // Apply basic validation
+    // Apply validation and stablecoin filtering
     const validCoins = enhancedCoins.filter(coin => {
-      // Only basic validation - price and volume
+      // Basic validation - price and volume
       if (!coin.current_price || coin.current_price <= 0) {
         console.warn(`⚠️ Invalid price for ${coin.symbol}: ${coin.current_price}`);
         return false;
@@ -137,6 +184,13 @@ export class StreamlinedEnhancedDataSources {
         console.warn(`⚠️ Low volume for ${coin.symbol}: ${coin.total_volume}`);
         return false;
       }
+      
+      // CRITICAL: Filter out stablecoins
+      if (this.isStablecoin(coin)) {
+        console.log(`🚫 STABLECOIN FILTERED: ${coin.symbol.toUpperCase()} - Excluded from recommendations`);
+        return false;
+      }
+      
       return true;
     });
     

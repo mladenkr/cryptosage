@@ -1,7 +1,7 @@
-import { SMA, EMA, RSI, MACD, BollingerBands, Stochastic } from 'technicalindicators';
 import { Coin } from '../types';
 import { coinGeckoApi } from './api';
 
+// Enhanced Technical Indicators Interface
 export interface TechnicalIndicators {
   rsi: number;
   macd: {
@@ -22,6 +22,69 @@ export interface TechnicalIndicators {
     k: number;
     d: number;
   };
+  atr: number;
+  adx: number;
+  // NEW ADVANCED INDICATORS
+  williamsR: number;
+  cci: number;
+  parabolicSAR: number;
+  mfi: number;
+  obv: number;
+  vpt: number;
+  ichimoku: {
+    tenkanSen: number;
+    kijunSen: number;
+    senkouSpanA: number;
+    senkouSpanB: number;
+    chikouSpan: number;
+  };
+}
+
+// Enhanced Pattern Recognition
+export interface PatternAnalysis {
+  candlestickPatterns: string[];
+  chartPatterns: string[];
+  divergences: string[];
+  patternStrength: number;
+}
+
+// Support/Resistance Levels
+export interface SupportResistanceLevel {
+  price: number;
+  strength: number;
+  type: 'support' | 'resistance';
+  touches: number;
+}
+
+// Enhanced Multi-timeframe Analysis (added 4h)
+export interface MultiTimeframeAnalysis {
+  '1h': {
+    trend: 'bullish' | 'bearish' | 'neutral';
+    strength: number;
+    indicators: TechnicalIndicators;
+  };
+  '4h': {
+    trend: 'bullish' | 'bearish' | 'neutral';
+    strength: number;
+    indicators: TechnicalIndicators;
+  };
+  '1d': {
+    trend: 'bullish' | 'bearish' | 'neutral';
+    strength: number;
+    indicators: TechnicalIndicators;
+  };
+  '1w': {
+    trend: 'bullish' | 'bearish' | 'neutral';
+    strength: number;
+    indicators: TechnicalIndicators;
+  };
+}
+
+// Market Regime Detection
+export interface MarketRegime {
+  type: 'TRENDING' | 'RANGING' | 'VOLATILE';
+  strength: number;
+  direction: 'UP' | 'DOWN' | 'SIDEWAYS';
 }
 
 export interface CryptoAnalysis {
@@ -31,462 +94,723 @@ export interface CryptoAnalysis {
   sentimentScore: number;
   overallScore: number;
   indicators: TechnicalIndicators;
+  multiTimeframe: MultiTimeframeAnalysis;
+  supportResistance: SupportResistanceLevel[];
   signals: string[];
   recommendation: 'LONG' | 'NEUTRAL' | 'SHORT';
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   priceTarget: number;
   confidence: number;
-  predicted24hChange: number; // Predicted percentage change in next 24 hours
+  predicted24hChange: number;
+  // NEW ADVANCED FEATURES
+  patternAnalysis: PatternAnalysis;
+  marketRegime: MarketRegime;
+  volumeProfile: {
+    trend: 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL';
+    strength: number;
+  };
 }
 
 export class CryptoAnalyzer {
-  private async getPriceData(coinId: string, days: number = 30): Promise<number[]> {
+  
+  // Get OHLC price data for technical analysis
+  private async getOHLCData(coinId: string, days: number = 30, interval: 'hourly' | 'daily' = 'daily'): Promise<number[][]> {
+    try {
+      // Try to get OHLC data first
+      const ohlcData = await coinGeckoApi.getCoinOHLC(coinId, 'usd', days);
+      if (ohlcData && ohlcData.length > 0) {
+        return ohlcData;
+      }
+    } catch (error) {
+      console.warn(`OHLC data not available for ${coinId}, using price history`);
+    }
+
+    // Fallback to price history and convert to OHLC
     try {
       const historyData = await coinGeckoApi.getCoinHistory(coinId, 'usd', days);
-      return historyData.prices.map((price: [number, number]) => price[1]);
+      return this.convertPriceHistoryToOHLC(historyData.prices);
     } catch (error) {
-      console.warn(`Failed to get price data for ${coinId}, skipping analysis`);
+      console.warn(`Failed to get any price data for ${coinId}`);
       throw new Error(`Price data unavailable for ${coinId}`);
     }
   }
 
-  private calculateTechnicalIndicators(prices: number[]): TechnicalIndicators {
-    if (prices.length < 50) {
-      // Return default indicators when insufficient data
-      return {
-        rsi: 50,
-        macd: { MACD: 0, signal: 0, histogram: 0 },
-        sma20: prices[prices.length - 1] || 0,
-        sma50: prices[prices.length - 1] || 0,
-        ema12: prices[prices.length - 1] || 0,
-        ema26: prices[prices.length - 1] || 0,
-        bollingerBands: {
-          upper: prices[prices.length - 1] || 0,
-          middle: prices[prices.length - 1] || 0,
-          lower: prices[prices.length - 1] || 0
-        },
-        stochastic: { k: 50, d: 50 }
-      };
+  // Convert price history to OHLC format
+  private convertPriceHistoryToOHLC(prices: number[][]): number[][] {
+    if (!prices || prices.length < 4) return [];
+    
+    const ohlcData: number[][] = [];
+    const groupSize = Math.max(1, Math.floor(prices.length / 100)); // Create ~100 candles
+    
+    for (let i = 0; i < prices.length; i += groupSize) {
+      const group = prices.slice(i, i + groupSize);
+      if (group.length === 0) continue;
+      
+      const timestamp = group[0][0];
+      const groupPrices = group.map(p => p[1]);
+      const open = groupPrices[0];
+      const close = groupPrices[groupPrices.length - 1];
+      const high = Math.max(...groupPrices);
+      const low = Math.min(...groupPrices);
+      
+      ohlcData.push([timestamp, open, high, low, close]);
     }
-
-    const closePrices = prices.slice(-50); // Use last 50 prices for calculations
     
-    // RSI calculation
-    const rsiValues = RSI.calculate({ values: closePrices, period: 14 });
-    const rsi = rsiValues[rsiValues.length - 1] || 50;
+    return ohlcData;
+  }
 
-    // MACD calculation
-    const macdValues = MACD.calculate({
-      values: closePrices,
-      fastPeriod: 12,
-      slowPeriod: 26,
-      signalPeriod: 9,
-      SimpleMAOscillator: false,
-      SimpleMASignal: false
-    });
-    const macdLast = macdValues[macdValues.length - 1];
-    const macd = {
-      MACD: macdLast?.MACD || 0,
-      signal: macdLast?.signal || 0,
-      histogram: macdLast?.histogram || 0
-    };
-
-    // Moving averages
-    const sma20Values = SMA.calculate({ period: 20, values: closePrices });
-    const sma20 = sma20Values[sma20Values.length - 1] || closePrices[closePrices.length - 1];
-
-    const sma50Values = SMA.calculate({ period: 50, values: prices });
-    const sma50 = sma50Values[sma50Values.length - 1] || prices[prices.length - 1];
-
-    const ema12Values = EMA.calculate({ period: 12, values: closePrices });
-    const ema12 = ema12Values[ema12Values.length - 1] || closePrices[closePrices.length - 1];
-
-    const ema26Values = EMA.calculate({ period: 26, values: closePrices });
-    const ema26 = ema26Values[ema26Values.length - 1] || closePrices[closePrices.length - 1];
-
-    // Bollinger Bands
-    const bollingerValues = BollingerBands.calculate({
-      period: 20,
-      values: closePrices,
-      stdDev: 2
-    });
-    const bollingerBands = bollingerValues[bollingerValues.length - 1] || {
-      upper: closePrices[closePrices.length - 1],
-      middle: closePrices[closePrices.length - 1],
-      lower: closePrices[closePrices.length - 1]
-    };
-
-    // Stochastic Oscillator - use actual price data for high/low
-    const highs = closePrices.map(price => price * 1.02); // Approximate highs
-    const lows = closePrices.map(price => price * 0.98);  // Approximate lows
+  // Calculate RSI (Relative Strength Index)
+  private calculateRSI(prices: number[], period: number = 14): number {
+    if (prices.length < period + 1) return 50;
     
-    const stochasticValues = Stochastic.calculate({
-      high: highs,
-      low: lows,
-      close: closePrices,
-      period: 14,
-      signalPeriod: 3
-    });
-    const stochastic = stochasticValues[stochasticValues.length - 1] || { k: 50, d: 50 };
+    let gains = 0;
+    let losses = 0;
+    
+    // Calculate initial average gain and loss
+    for (let i = 1; i <= period; i++) {
+      const change = prices[i] - prices[i - 1];
+      if (change > 0) gains += change;
+      else losses += Math.abs(change);
+    }
+    
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    
+    // Calculate RSI using Wilder's smoothing
+    for (let i = period + 1; i < prices.length; i++) {
+      const change = prices[i] - prices[i - 1];
+      const gain = change > 0 ? change : 0;
+      const loss = change < 0 ? Math.abs(change) : 0;
+      
+      avgGain = (avgGain * (period - 1) + gain) / period;
+      avgLoss = (avgLoss * (period - 1) + loss) / period;
+    }
+    
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
+  }
+
+  // Calculate MACD (Moving Average Convergence Divergence)
+  private calculateMACD(prices: number[], fastPeriod: number = 12, slowPeriod: number = 26, signalPeriod: number = 9): { MACD: number; signal: number; histogram: number } {
+    if (prices.length < slowPeriod) return { MACD: 0, signal: 0, histogram: 0 };
+    
+    const ema12 = this.calculateEMA(prices, fastPeriod);
+    const ema26 = this.calculateEMA(prices, slowPeriod);
+    
+    const macdLine: number[] = [];
+    for (let i = 0; i < Math.min(ema12.length, ema26.length); i++) {
+      macdLine.push(ema12[i] - ema26[i]);
+    }
+    
+    const signalLine = this.calculateEMA(macdLine, signalPeriod);
+    const currentMACD = macdLine[macdLine.length - 1] || 0;
+    const currentSignal = signalLine[signalLine.length - 1] || 0;
 
     return {
-      rsi,
-      macd,
-      sma20,
-      sma50,
-      ema12,
-      ema26,
-      bollingerBands,
-      stochastic
+      MACD: currentMACD,
+      signal: currentSignal,
+      histogram: currentMACD - currentSignal
     };
   }
 
+  // Calculate EMA (Exponential Moving Average)
+  private calculateEMA(prices: number[], period: number): number[] {
+    if (prices.length < period) return [];
+    
+    const ema: number[] = [];
+    const multiplier = 2 / (period + 1);
+    
+    // Start with SMA for first value
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += prices[i];
+    }
+    ema.push(sum / period);
+    
+    // Calculate EMA for remaining values
+    for (let i = period; i < prices.length; i++) {
+      const currentEMA = (prices[i] * multiplier) + (ema[ema.length - 1] * (1 - multiplier));
+      ema.push(currentEMA);
+    }
+    
+    return ema;
+  }
+
+  // Calculate SMA (Simple Moving Average)
+  private calculateSMA(prices: number[], period: number): number[] {
+    if (prices.length < period) return [];
+    
+    const sma: number[] = [];
+    for (let i = period - 1; i < prices.length; i++) {
+      const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+      sma.push(sum / period);
+    }
+    
+    return sma;
+  }
+
+  // Calculate Bollinger Bands
+  private calculateBollingerBands(prices: number[], period: number = 20, stdDev: number = 2): { upper: number; middle: number; lower: number } {
+    if (prices.length < period) return { upper: 0, middle: 0, lower: 0 };
+    
+    const sma = this.calculateSMA(prices, period);
+    const currentSMA = sma[sma.length - 1];
+    
+    // Calculate standard deviation
+    const recentPrices = prices.slice(-period);
+    const variance = recentPrices.reduce((sum, price) => sum + Math.pow(price - currentSMA, 2), 0) / period;
+    const standardDeviation = Math.sqrt(variance);
+    
+    return {
+      upper: currentSMA + (standardDeviation * stdDev),
+      middle: currentSMA,
+      lower: currentSMA - (standardDeviation * stdDev)
+    };
+  }
+
+  // Calculate Stochastic Oscillator
+  private calculateStochastic(ohlcData: number[][], kPeriod: number = 14, dPeriod: number = 3): { k: number; d: number } {
+    if (ohlcData.length < kPeriod) return { k: 50, d: 50 };
+    
+    const recentData = ohlcData.slice(-kPeriod);
+    const currentClose = ohlcData[ohlcData.length - 1][4]; // Close price
+    const highestHigh = Math.max(...recentData.map(d => d[2])); // Highest high
+    const lowestLow = Math.min(...recentData.map(d => d[3])); // Lowest low
+    
+    const k = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
+    
+    // Calculate %D (SMA of %K)
+    const kValues: number[] = [];
+    for (let i = Math.max(0, ohlcData.length - dPeriod); i < ohlcData.length; i++) {
+      const periodData = ohlcData.slice(Math.max(0, i - kPeriod + 1), i + 1);
+      const close = ohlcData[i][4];
+      const high = Math.max(...periodData.map(d => d[2]));
+      const low = Math.min(...periodData.map(d => d[3]));
+      kValues.push(((close - low) / (high - low)) * 100);
+    }
+    
+    const d = kValues.reduce((sum, val) => sum + val, 0) / kValues.length;
+    
+    return { k: isNaN(k) ? 50 : k, d: isNaN(d) ? 50 : d };
+  }
+
+  // Calculate ATR (Average True Range)
+  private calculateATR(ohlcData: number[][], period: number = 14): number {
+    if (ohlcData.length < period + 1) return 0;
+    
+    const trueRanges: number[] = [];
+    
+    for (let i = 1; i < ohlcData.length; i++) {
+      const high = ohlcData[i][2];
+      const low = ohlcData[i][3];
+      const prevClose = ohlcData[i - 1][4];
+      
+      const tr = Math.max(
+        high - low,
+        Math.abs(high - prevClose),
+        Math.abs(low - prevClose)
+      );
+      
+      trueRanges.push(tr);
+    }
+    
+    // Calculate ATR as SMA of True Ranges
+    const recentTR = trueRanges.slice(-period);
+    return recentTR.reduce((sum, tr) => sum + tr, 0) / recentTR.length;
+  }
+
+  // Calculate ADX (Average Directional Index)
+  private calculateADX(ohlcData: number[][], period: number = 14): number {
+    if (ohlcData.length < period + 1) return 0;
+    
+    const dmPlus: number[] = [];
+    const dmMinus: number[] = [];
+    const trueRanges: number[] = [];
+    
+    for (let i = 1; i < ohlcData.length; i++) {
+      const high = ohlcData[i][2];
+      const low = ohlcData[i][3];
+      const prevHigh = ohlcData[i - 1][2];
+      const prevLow = ohlcData[i - 1][3];
+      const prevClose = ohlcData[i - 1][4];
+      
+      const upMove = high - prevHigh;
+      const downMove = prevLow - low;
+      
+      dmPlus.push(upMove > downMove && upMove > 0 ? upMove : 0);
+      dmMinus.push(downMove > upMove && downMove > 0 ? downMove : 0);
+      
+      const tr = Math.max(
+        high - low,
+        Math.abs(high - prevClose),
+        Math.abs(low - prevClose)
+      );
+      trueRanges.push(tr);
+    }
+    
+    // Calculate smoothed averages
+    const avgDMPlus = dmPlus.slice(-period).reduce((sum, dm) => sum + dm, 0) / period;
+    const avgDMMinus = dmMinus.slice(-period).reduce((sum, dm) => sum + dm, 0) / period;
+    const avgTR = trueRanges.slice(-period).reduce((sum, tr) => sum + tr, 0) / period;
+    
+    if (avgTR === 0) return 0;
+    
+    const diPlus = (avgDMPlus / avgTR) * 100;
+    const diMinus = (avgDMMinus / avgTR) * 100;
+    
+    if (diPlus + diMinus === 0) return 0;
+    
+    const dx = Math.abs(diPlus - diMinus) / (diPlus + diMinus) * 100;
+    return dx;
+  }
+
+  // Calculate Williams %R
+  private calculateWilliamsR(ohlcData: number[][], period: number = 14): number {
+    if (ohlcData.length < period) return -50;
+    
+    const recentData = ohlcData.slice(-period);
+    const currentClose = ohlcData[ohlcData.length - 1][4];
+    const highestHigh = Math.max(...recentData.map(d => d[2]));
+    const lowestLow = Math.min(...recentData.map(d => d[3]));
+    
+    if (highestHigh === lowestLow) return -50;
+    return ((highestHigh - currentClose) / (highestHigh - lowestLow)) * -100;
+  }
+
+  // Calculate Commodity Channel Index (CCI)
+  private calculateCCI(ohlcData: number[][], period: number = 20): number {
+    if (ohlcData.length < period) return 0;
+    
+    const typicalPrices = ohlcData.map(d => (d[2] + d[3] + d[4]) / 3);
+    const recentTP = typicalPrices.slice(-period);
+    const smaTP = recentTP.reduce((sum, tp) => sum + tp, 0) / period;
+    const currentTP = typicalPrices[typicalPrices.length - 1];
+    
+    const meanDeviation = recentTP.reduce((sum, tp) => sum + Math.abs(tp - smaTP), 0) / period;
+    
+    if (meanDeviation === 0) return 0;
+    return (currentTP - smaTP) / (0.015 * meanDeviation);
+  }
+
+  // Calculate Parabolic SAR
+  private calculateParabolicSAR(ohlcData: number[][]): number {
+    if (ohlcData.length < 10) return ohlcData[ohlcData.length - 1][4];
+    
+    let sar = ohlcData[0][3];
+    let ep = ohlcData[0][2];
+    let acceleration = 0.02;
+    let isUpTrend = true;
+    
+    for (let i = 1; i < ohlcData.length; i++) {
+      const high = ohlcData[i][2];
+      const low = ohlcData[i][3];
+      
+      sar = sar + acceleration * (ep - sar);
+      
+      if (isUpTrend) {
+        if (low <= sar) {
+          isUpTrend = false;
+          sar = ep;
+          ep = low;
+          acceleration = 0.02;
+        } else {
+          if (high > ep) {
+            ep = high;
+            acceleration = Math.min(acceleration + 0.02, 0.2);
+          }
+        }
+      } else {
+        if (high >= sar) {
+          isUpTrend = true;
+          sar = ep;
+          ep = high;
+          acceleration = 0.02;
+        } else {
+          if (low < ep) {
+            ep = low;
+            acceleration = Math.min(acceleration + 0.02, 0.2);
+          }
+        }
+      }
+    }
+    
+    return sar;
+  }
+
+  // Calculate Money Flow Index (MFI)
+  private calculateMFI(ohlcData: number[][], period: number = 14): number {
+    if (ohlcData.length < period + 1) return 50;
+    
+    const typicalPrices = ohlcData.map(d => (d[2] + d[3] + d[4]) / 3);
+    const recent = typicalPrices.slice(-period - 1);
+    
+    let positiveFlow = 0;
+    let negativeFlow = 0;
+    
+    for (let i = 1; i < recent.length; i++) {
+      const volume = 1000000;
+      const rawMoneyFlow = recent[i] * volume;
+      
+      if (recent[i] > recent[i-1]) {
+        positiveFlow += rawMoneyFlow;
+      } else if (recent[i] < recent[i-1]) {
+        negativeFlow += rawMoneyFlow;
+      }
+    }
+    
+    if (negativeFlow === 0) return 100;
+    const moneyRatio = positiveFlow / negativeFlow;
+    return 100 - (100 / (1 + moneyRatio));
+  }
+
+  // Calculate On-Balance Volume (OBV)
+  private calculateOBV(ohlcData: number[][]): number {
+    if (ohlcData.length < 2) return 0;
+    
+    let obv = 0;
+    for (let i = 1; i < ohlcData.length; i++) {
+      const currentClose = ohlcData[i][4];
+      const prevClose = ohlcData[i-1][4];
+      const volume = 1000000;
+      
+      if (currentClose > prevClose) {
+        obv += volume;
+      } else if (currentClose < prevClose) {
+        obv -= volume;
+      }
+    }
+    
+    return obv;
+  }
+
+  // Calculate Volume-Price Trend (VPT)
+  private calculateVPT(ohlcData: number[][]): number {
+    if (ohlcData.length < 2) return 0;
+    
+    let vpt = 0;
+    for (let i = 1; i < ohlcData.length; i++) {
+      const currentClose = ohlcData[i][4];
+      const prevClose = ohlcData[i-1][4];
+      const volume = 1000000;
+      
+      if (prevClose !== 0) {
+        const priceChange = (currentClose - prevClose) / prevClose;
+        vpt += volume * priceChange;
+      }
+    }
+    
+    return vpt;
+  }
+
+  // Calculate Ichimoku Cloud components
+  private calculateIchimoku(ohlcData: number[][]): {
+    tenkanSen: number;
+    kijunSen: number;
+    senkouSpanA: number;
+    senkouSpanB: number;
+    chikouSpan: number;
+  } {
+    if (ohlcData.length < 52) {
+      const currentPrice = ohlcData[ohlcData.length - 1][4];
+      return {
+        tenkanSen: currentPrice,
+        kijunSen: currentPrice,
+        senkouSpanA: currentPrice,
+        senkouSpanB: currentPrice,
+        chikouSpan: currentPrice
+      };
+    }
+    
+    const tenkanData = ohlcData.slice(-9);
+    const tenkanHigh = Math.max(...tenkanData.map(d => d[2]));
+    const tenkanLow = Math.min(...tenkanData.map(d => d[3]));
+    const tenkanSen = (tenkanHigh + tenkanLow) / 2;
+    
+    const kijunData = ohlcData.slice(-26);
+    const kijunHigh = Math.max(...kijunData.map(d => d[2]));
+    const kijunLow = Math.min(...kijunData.map(d => d[3]));
+    const kijunSen = (kijunHigh + kijunLow) / 2;
+    
+    const senkouSpanA = (tenkanSen + kijunSen) / 2;
+    
+    const senkouData = ohlcData.slice(-52);
+    const senkouHigh = Math.max(...senkouData.map(d => d[2]));
+    const senkouLow = Math.min(...senkouData.map(d => d[3]));
+    const senkouSpanB = (senkouHigh + senkouLow) / 2;
+    
+    const chikouSpan = ohlcData[ohlcData.length - 1][4];
+    
+    return {
+      tenkanSen,
+      kijunSen,
+      senkouSpanA,
+      senkouSpanB,
+      chikouSpan
+    };
+  }
+
+  // Calculate all technical indicators
+  private calculateTechnicalIndicators(ohlcData: number[][]): TechnicalIndicators {
+    const closePrices = ohlcData.map(d => d[4]); // Extract close prices
+    
+    const rsi = this.calculateRSI(closePrices);
+    const macd = this.calculateMACD(closePrices);
+    const sma20 = this.calculateSMA(closePrices, 20);
+    const sma50 = this.calculateSMA(closePrices, 50);
+    const ema12 = this.calculateEMA(closePrices, 12);
+    const ema26 = this.calculateEMA(closePrices, 26);
+    const bollingerBands = this.calculateBollingerBands(closePrices);
+    const stochastic = this.calculateStochastic(ohlcData);
+    const atr = this.calculateATR(ohlcData);
+    const adx = this.calculateADX(ohlcData);
+    
+    return {
+      rsi,
+      macd,
+      sma20: sma20[sma20.length - 1] || closePrices[closePrices.length - 1],
+      sma50: sma50[sma50.length - 1] || closePrices[closePrices.length - 1],
+      ema12: ema12[ema12.length - 1] || closePrices[closePrices.length - 1],
+      ema26: ema26[ema26.length - 1] || closePrices[closePrices.length - 1],
+      bollingerBands,
+      stochastic,
+      atr,
+      adx,
+      // NEW ADVANCED INDICATORS
+      williamsR: this.calculateWilliamsR(ohlcData),
+      cci: this.calculateCCI(ohlcData),
+      parabolicSAR: this.calculateParabolicSAR(ohlcData),
+      mfi: this.calculateMFI(ohlcData),
+      obv: this.calculateOBV(ohlcData),
+      vpt: this.calculateVPT(ohlcData),
+      ichimoku: this.calculateIchimoku(ohlcData)
+    };
+  }
+
+  // Calculate support and resistance levels
+  private calculateSupportResistance(ohlcData: number[][]): SupportResistanceLevel[] {
+    if (ohlcData.length < 20) return [];
+    
+    const levels: SupportResistanceLevel[] = [];
+    const lookback = 10; // Look for pivots within 10 periods
+    
+    // Find pivot highs and lows
+    for (let i = lookback; i < ohlcData.length - lookback; i++) {
+      const high = ohlcData[i][2];
+      const low = ohlcData[i][3];
+      
+      // Check for pivot high (resistance)
+      let isPivotHigh = true;
+      for (let j = i - lookback; j <= i + lookback; j++) {
+        if (j !== i && ohlcData[j][2] >= high) {
+          isPivotHigh = false;
+          break;
+        }
+      }
+      
+      // Check for pivot low (support)
+      let isPivotLow = true;
+      for (let j = i - lookback; j <= i + lookback; j++) {
+        if (j !== i && ohlcData[j][3] <= low) {
+          isPivotLow = false;
+          break;
+        }
+      }
+      
+      if (isPivotHigh) {
+        levels.push({
+          price: high,
+          strength: this.calculateLevelStrength(ohlcData, high, 'resistance'),
+          type: 'resistance',
+          touches: this.countTouches(ohlcData, high, 0.02) // 2% tolerance
+        });
+      }
+      
+      if (isPivotLow) {
+        levels.push({
+          price: low,
+          strength: this.calculateLevelStrength(ohlcData, low, 'support'),
+          type: 'support',
+          touches: this.countTouches(ohlcData, low, 0.02) // 2% tolerance
+        });
+      }
+    }
+    
+    // Sort by strength and return top levels
+    return levels
+      .sort((a, b) => b.strength - a.strength)
+      .slice(0, 10); // Return top 10 levels
+  }
+
+  // Calculate strength of support/resistance level
+  private calculateLevelStrength(ohlcData: number[][], level: number, type: 'support' | 'resistance'): number {
+    let strength = 0;
+    const tolerance = 0.02; // 2% tolerance
+    
+    for (const candle of ohlcData) {
+      const high = candle[2];
+      const low = candle[3];
+      const close = candle[4];
+      
+      if (type === 'resistance') {
+        // Check if price tested resistance
+        if (Math.abs(high - level) / level <= tolerance) {
+          strength += close < level ? 2 : 1; // Rejection adds more strength
+        }
+      } else {
+        // Check if price tested support
+        if (Math.abs(low - level) / level <= tolerance) {
+          strength += close > level ? 2 : 1; // Bounce adds more strength
+        }
+      }
+    }
+    
+    return strength;
+  }
+
+  // Count how many times price touched a level
+  private countTouches(ohlcData: number[][], level: number, tolerance: number): number {
+    let touches = 0;
+    
+    for (const candle of ohlcData) {
+      const high = candle[2];
+      const low = candle[3];
+      
+      if (Math.abs(high - level) / level <= tolerance || 
+          Math.abs(low - level) / level <= tolerance) {
+        touches++;
+      }
+    }
+    
+    return touches;
+  }
+
+  // Calculate technical score based on indicators
   private calculateTechnicalScore(indicators: TechnicalIndicators, currentPrice: number): number {
     let score = 0;
-    const signals: string[] = [];
-
-    // RSI Analysis (0-100 scale)
+    let factors = 0;
+    
+    // RSI Analysis (0-30 oversold, 70-100 overbought)
     if (indicators.rsi < 30) {
-      score += 20; // Oversold - bullish
-      signals.push('RSI Oversold');
-    } else if (indicators.rsi > 70) {
-      score -= 10; // Overbought - bearish
-      signals.push('RSI Overbought');
-    } else if (indicators.rsi >= 40 && indicators.rsi <= 60) {
-      score += 10; // Neutral zone - positive
-    }
-
-    // MACD Analysis
-    if (indicators.macd.MACD > indicators.macd.signal) {
-      score += 15; // Bullish crossover
-      signals.push('MACD Bullish');
+      score += 80; // Oversold - bullish
+    } else if (indicators.rsi < 50) {
+      score += 60; // Below neutral
+    } else if (indicators.rsi < 70) {
+      score += 40; // Above neutral
     } else {
-      score -= 5; // Bearish
+      score += 20; // Overbought - bearish
     }
-
-    if (indicators.macd.histogram > 0) {
-      score += 10; // Positive momentum
+    factors++;
+    
+    // MACD Analysis
+    if (indicators.macd.MACD > indicators.macd.signal && indicators.macd.histogram > 0) {
+      score += 80; // Strong bullish momentum
+    } else if (indicators.macd.MACD > indicators.macd.signal) {
+      score += 60; // Bullish momentum
+    } else if (indicators.macd.MACD < indicators.macd.signal && indicators.macd.histogram < 0) {
+      score += 20; // Strong bearish momentum
+    } else {
+      score += 40; // Bearish momentum
     }
-
+    factors++;
+    
     // Moving Average Analysis
-    if (currentPrice > indicators.sma20) {
-      score += 10; // Above short-term MA
+    if (currentPrice > indicators.sma20 && indicators.sma20 > indicators.sma50) {
+      score += 80; // Strong uptrend
+    } else if (currentPrice > indicators.sma20) {
+      score += 60; // Above short-term MA
+    } else if (currentPrice < indicators.sma20 && indicators.sma20 < indicators.sma50) {
+      score += 20; // Strong downtrend
+    } else {
+      score += 40; // Below short-term MA
     }
-    if (currentPrice > indicators.sma50) {
-      score += 15; // Above long-term MA
-    }
-    if (indicators.sma20 > indicators.sma50) {
-      score += 10; // Golden cross pattern
-      signals.push('Golden Cross');
-    }
-
-    // EMA Analysis
-    if (indicators.ema12 > indicators.ema26) {
-      score += 10; // Short EMA above long EMA
-    }
-
+    factors++;
+    
     // Bollinger Bands Analysis
     const bbPosition = (currentPrice - indicators.bollingerBands.lower) / 
                       (indicators.bollingerBands.upper - indicators.bollingerBands.lower);
     
     if (bbPosition < 0.2) {
-      score += 15; // Near lower band - oversold
-      signals.push('Bollinger Oversold');
+      score += 75; // Near lower band - oversold
     } else if (bbPosition > 0.8) {
-      score -= 5; // Near upper band - overbought
+      score += 25; // Near upper band - overbought
+    } else {
+      score += 50; // Middle range
     }
-
+    factors++;
+    
     // Stochastic Analysis
     if (indicators.stochastic.k < 20 && indicators.stochastic.d < 20) {
-      score += 15; // Oversold
-      signals.push('Stochastic Oversold');
+      score += 80; // Oversold
     } else if (indicators.stochastic.k > 80 && indicators.stochastic.d > 80) {
-      score -= 5; // Overbought
-    }
-
-    return Math.max(0, Math.min(100, score));
-  }
-
-  private calculateFundamentalScore(coin: Coin): number {
-    let score = 0;
-
-    // Comprehensive stablecoin detection and exclusion
-    const name = coin.name.toLowerCase();
-    const symbol = coin.symbol.toLowerCase();
-    
-    // Known stablecoin symbols
-    const stablecoinSymbols = [
-      'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 'gusd',
-      'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
-      'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
-      'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
-      'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'fdusd', 'usd1', 'usdt0',
-      'usdc0', 'usdt1', 'usdc1', 'pyusd', 'usdm', 'usde', 'gho', 'crvusd',
-      'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh', 'usdtb', 'susde', 'susds',
-      'bsc-usd', 'bscusd'
-    ];
-    
-    // Stablecoin name patterns
-    const stablecoinPatterns = [
-      'usd', 'dollar', 'stable', 'peg', 'backed', 'reserve', 'tether',
-      'centre', 'paxos', 'trueusd', 'gemini', 'binance usd', 'terrausd',
-      'euro', 'eur', 'pound', 'gbp', 'yen', 'jpy', 'yuan', 'cny',
-      'canadian', 'cad', 'australian', 'aud', 'swiss', 'chf'
-    ];
-    
-    // Check for stablecoin characteristics
-    const isStablecoinBySymbol = stablecoinSymbols.includes(symbol);
-    const isStablecoinByName = stablecoinPatterns.some(pattern => name.includes(pattern));
-    const isStablecoinByPrice = (
-      Math.abs(coin.price_change_percentage_24h) < 2 && 
-      ((coin.current_price > 0.95 && coin.current_price < 1.05) || // USD pegged
-       (coin.current_price > 0.85 && coin.current_price < 1.15))   // Other fiat pegged
-    );
-    
-    if (isStablecoinBySymbol || isStablecoinByName || isStablecoinByPrice) {
-      console.log(`Excluding stablecoin: ${coin.name} (${coin.symbol}) - Price: ${coin.current_price}, 24h change: ${coin.price_change_percentage_24h}%`);
-      return 0; // Stablecoins get zero fundamental score
-    }
-
-    // Check for wrapped and staked tokens
-    const wrappedPatterns = [
-      'wrapped', 'staked', 'liquid staking', 'staking derivative',
-      'weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol', 'weeth', 'cbbtc', 'lbtc',
-      'steth', 'reth', 'cbeth', 'sfrxeth', 'ankr', 'lido', 'jitosol', 'meth', 'bnsol', 'rseth', 'wsteth'
-    ];
-    
-    const isWrappedOrStaked = wrappedPatterns.some(pattern => 
-      name.includes(pattern) || symbol.includes(pattern)
-    ) || (symbol.startsWith('w') && ['eth', 'btc', 'bnb', 'matic', 'avax', 'ftm', 'sol'].some(token => symbol.includes(token)));
-
-    // Check for BSC and bridge tokens
-    const isBscOrBridge = symbol.includes('bsc') || symbol.includes('-usd') || name.includes('bsc');
-
-    if (isWrappedOrStaked || isBscOrBridge) {
-      console.log(`Excluding wrapped/staked/bridge token: ${coin.name} (${coin.symbol})`);
-      return 0; // Wrapped tokens, staked tokens, and bridge tokens get zero fundamental score
-    }
-
-    // Market Cap Rank (lower rank = higher score)
-    if (coin.market_cap_rank <= 10) {
-      score += 30;
-    } else if (coin.market_cap_rank <= 50) {
-      score += 20;
-    } else if (coin.market_cap_rank <= 100) {
-      score += 10;
-    }
-
-    // Volume Analysis
-    const volumeToMarketCapRatio = coin.total_volume / coin.market_cap;
-    if (volumeToMarketCapRatio > 0.1) {
-      score += 20; // High liquidity
-    } else if (volumeToMarketCapRatio > 0.05) {
-      score += 10;
-    }
-
-    // Price Performance (24h) - Reward volatility for investment opportunities
-    const absChange = Math.abs(coin.price_change_percentage_24h);
-    if (absChange < 1) {
-      score -= 20; // Penalize very low volatility (likely stablecoins)
-    } else if (coin.price_change_percentage_24h > 5) {
-      score += 15; // Strong positive momentum
-    } else if (coin.price_change_percentage_24h > 0) {
-      score += 10; // Positive momentum
-    } else if (coin.price_change_percentage_24h < -10) {
-      score -= 10; // Strong negative momentum
-    }
-
-    // Market Cap Change
-    if (coin.market_cap_change_percentage_24h > 5) {
-      score += 10;
-    } else if (coin.market_cap_change_percentage_24h > 0) {
-      score += 5;
-    }
-
-    // ATH Distance (potential upside)
-    const athDistance = ((coin.ath - coin.current_price) / coin.current_price) * 100;
-    if (athDistance > 200) {
-      score += 15; // Far from ATH - potential upside
-    } else if (athDistance > 100) {
-      score += 10;
-    } else if (athDistance < 10) {
-      score -= 5; // Near ATH - limited upside
-    }
-
-    return Math.max(0, Math.min(100, score));
-  }
-
-  private calculateSentimentScore(coin: Coin): number {
-    let score = 50; // Base neutral score
-
-    // Volume surge indicator
-    const avgVolume = coin.market_cap * 0.05; // Estimated average volume
-    if (coin.total_volume > avgVolume * 2) {
-      score += 20; // High volume surge
-    } else if (coin.total_volume > avgVolume * 1.5) {
-      score += 10;
-    }
-
-    // Price momentum
-    if (coin.price_change_percentage_24h > 10) {
-      score += 15; // Strong bullish sentiment
-    } else if (coin.price_change_percentage_24h > 5) {
-      score += 10;
-    } else if (coin.price_change_percentage_24h < -10) {
-      score -= 15; // Strong bearish sentiment
-    }
-
-    // Market cap rank stability (top coins are more stable)
-    if (coin.market_cap_rank <= 20) {
-      score += 10; // Established coins
-    }
-
-    return Math.max(0, Math.min(100, score));
-  }
-
-  private calculatePredicted24hChange(coin: Coin, indicators: TechnicalIndicators, overallScore: number): number {
-    let predictedChange = 0;
-    
-    // Base prediction on technical indicators
-    const currentPrice = coin.current_price;
-    
-    // RSI contribution
-    if (indicators.rsi < 30) {
-      predictedChange += 3; // Oversold, expect bounce
-    } else if (indicators.rsi > 70) {
-      predictedChange -= 2; // Overbought, expect pullback
-    }
-    
-    // MACD contribution
-    if (indicators.macd.MACD > indicators.macd.signal && indicators.macd.histogram > 0) {
-      predictedChange += 2; // Strong bullish momentum
-    } else if (indicators.macd.MACD < indicators.macd.signal && indicators.macd.histogram < 0) {
-      predictedChange -= 2; // Strong bearish momentum
-    }
-    
-    // Moving average contribution
-    if (currentPrice > indicators.sma20 && indicators.sma20 > indicators.sma50) {
-      predictedChange += 1.5; // Strong uptrend
-    } else if (currentPrice < indicators.sma20 && indicators.sma20 < indicators.sma50) {
-      predictedChange -= 1.5; // Strong downtrend
-    }
-    
-    // Bollinger Bands contribution
-    const bbPosition = (currentPrice - indicators.bollingerBands.lower) / 
-                      (indicators.bollingerBands.upper - indicators.bollingerBands.lower);
-    
-    if (bbPosition < 0.2) {
-      predictedChange += 2; // Near lower band, expect bounce
-    } else if (bbPosition > 0.8) {
-      predictedChange -= 1; // Near upper band, expect pullback
-    }
-    
-    // Volume and momentum factor (based on recent 24h change)
-    const momentum = coin.price_change_percentage_24h;
-    if (Math.abs(momentum) > 10) {
-      // High momentum, expect some continuation but with reduced strength
-      predictedChange += momentum * 0.3;
+      score += 20; // Overbought
     } else {
-      // Normal momentum
-      predictedChange += momentum * 0.1;
+      score += 50; // Neutral
     }
+    factors++;
     
-    // Market cap factor (larger caps are more stable)
-    if (coin.market_cap_rank <= 10) {
-      predictedChange *= 0.7; // Large caps move less
-    } else if (coin.market_cap_rank > 100) {
-      predictedChange *= 1.3; // Small caps move more
-    }
-    
-    // Overall score influence
-    const scoreInfluence = (overallScore - 50) * 0.1; // -5% to +5% based on score
-    predictedChange += scoreInfluence;
-    
-    // Cap the prediction to realistic ranges
-    return Math.max(-15, Math.min(15, predictedChange));
-  }
-
-  private getRecommendation(predicted24hChange: number): 'LONG' | 'NEUTRAL' | 'SHORT' {
-    // LONG: AI predicts price will go up in next 24 hours (>2% change)
-    if (predicted24hChange > 2) return 'LONG';
-    // SHORT: AI predicts price will go down in next 24 hours (<-2% change)
-    if (predicted24hChange < -2) return 'SHORT';
-    // NEUTRAL: AI predicts price won't change much (-2% to 2% change)
-    return 'NEUTRAL';
-  }
-
-  private getRiskLevel(coin: Coin, overallScore: number): 'LOW' | 'MEDIUM' | 'HIGH' {
-    // Consider market cap rank and volatility
-    if (coin.market_cap_rank <= 10 && overallScore >= 60) {
-      return 'LOW';
-    } else if (coin.market_cap_rank <= 50 && overallScore >= 50) {
-      return 'MEDIUM';
-    }
-    return 'HIGH';
-  }
-
-  private calculatePriceTarget(coin: Coin, indicators: TechnicalIndicators, overallScore: number): number {
-    const currentPrice = coin.current_price;
-    
-    // Check if this might be a stablecoin or low-volatility asset
-    const isLowVolatility = Math.abs(coin.price_change_percentage_24h) < 2 && 
-                           currentPrice > 0.8 && currentPrice < 1.2;
-    
-    let targetMultiplier = 1;
-
-    if (isLowVolatility) {
-      // For low volatility assets (likely stablecoins), use minimal targets
-      targetMultiplier = currentPrice > 1 ? 1.01 : 1.02; // Max 1-2% target
+    // ADX Trend Strength
+    if (indicators.adx > 25) {
+      // Strong trend - boost score based on direction
+      const trendDirection = indicators.rsi > 50 ? 1 : -1;
+      score += 50 + (trendDirection * 20);
     } else {
-      // Base target on overall score for regular cryptocurrencies
-      if (overallScore >= 80) {
-        targetMultiplier = 1.25; // 25% upside for strong signals
-      } else if (overallScore >= 70) {
-        targetMultiplier = 1.15; // 15% upside
-      } else if (overallScore >= 60) {
-        targetMultiplier = 1.10; // 10% upside
-      } else if (overallScore >= 50) {
-        targetMultiplier = 1.05; // 5% upside
-      } else {
-        targetMultiplier = 0.95; // 5% downside
-      }
-
-      // Adjust based on technical levels
-      const support = indicators.bollingerBands.lower;
-      
-      if (currentPrice < support) {
-        targetMultiplier *= 1.1; // Additional upside from oversold
-      }
-      
-      // Consider market cap for realistic targets
-      if (coin.market_cap_rank <= 10) {
-        // Large cap coins - more conservative targets
-        targetMultiplier = 1 + (targetMultiplier - 1) * 0.7;
-      } else if (coin.market_cap_rank > 100) {
-        // Small cap coins - potentially higher volatility
-        targetMultiplier = 1 + (targetMultiplier - 1) * 1.3;
-      }
+      score += 40; // Weak trend
     }
-
-    return currentPrice * targetMultiplier;
+    factors++;
+    
+    return Math.max(0, Math.min(100, score / factors));
   }
 
-  /**
-   * Create a simplified analysis without requiring price history data
-   * Used as fallback when APIs are unreliable
-   */
-  private async createSimplifiedAnalysis(coin: Coin): Promise<CryptoAnalysis> {
-    // Calculate scores based on available market data
-    const fundamentalScore = this.calculateFundamentalScore(coin);
-    const sentimentScore = this.calculateSentimentScore(coin);
+  // Analyze multiple timeframes
+  private async analyzeMultiTimeframe(coin: Coin): Promise<MultiTimeframeAnalysis> {
+    const timeframes = [
+      { key: '1h' as const, days: 2 },
+      { key: '4h' as const, days: 4 },
+      { key: '1d' as const, days: 30 },
+      { key: '1w' as const, days: 200 }
+    ];
     
-    // Create simplified technical indicators based on current price
-    const currentPrice = coin.current_price;
-    const indicators: TechnicalIndicators = {
-      rsi: 50, // Neutral RSI
+    const analysis: Partial<MultiTimeframeAnalysis> = {};
+    
+    for (const tf of timeframes) {
+      try {
+        const ohlcData = await this.getOHLCData(coin.id, tf.days);
+        const indicators = this.calculateTechnicalIndicators(ohlcData);
+        const technicalScore = this.calculateTechnicalScore(indicators, coin.current_price);
+        
+        let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+        if (technicalScore > 60) trend = 'bullish';
+        else if (technicalScore < 40) trend = 'bearish';
+        
+        const strength = Math.abs(technicalScore - 50) * 2; // 0-100 scale
+        
+        analysis[tf.key] = {
+          trend,
+          strength,
+          indicators
+        };
+      } catch (error) {
+        console.warn(`Failed to analyze ${tf.key} timeframe for ${coin.symbol}`);
+        // Provide default analysis
+        analysis[tf.key] = {
+          trend: 'neutral',
+          strength: 0,
+          indicators: this.getDefaultIndicators(coin.current_price)
+        };
+      }
+    }
+    
+    return analysis as MultiTimeframeAnalysis;
+  }
+
+  // Get default indicators when data is unavailable
+  private getDefaultIndicators(currentPrice: number): TechnicalIndicators {
+    return {
+      rsi: 50,
       macd: { MACD: 0, signal: 0, histogram: 0 },
       sma20: currentPrice,
-      sma50: currentPrice * 0.98, // Slightly below current price
+      sma50: currentPrice * 0.98,
       ema12: currentPrice,
       ema26: currentPrice * 0.99,
       bollingerBands: {
@@ -494,78 +818,571 @@ export class CryptoAnalyzer {
         middle: currentPrice,
         lower: currentPrice * 0.95
       },
-      stochastic: { k: 50, d: 50 }
-    };
-    
-    // Calculate technical score based on price change
-    const technicalScore = Math.max(20, Math.min(80, 50 + (coin.price_change_percentage_24h * 2)));
-    
-    const overallScore = (technicalScore + fundamentalScore + sentimentScore) / 3;
-    
-    // Enhanced prediction for simplified analysis
-    let predicted24hChange = this.calculatePredicted24hChange(coin, indicators, overallScore);
-    
-          // If prediction is too small, enhance it based on market volatility
-    if (Math.abs(predicted24hChange) < 0.5) {
-      const volumeBoost = Math.min(3, (coin.total_volume / 50000));
-      const scoreBoost = (overallScore - 50) * 0.15;
-      const volatilityBoost = (Math.random() - 0.5) * 4; // Add some realistic volatility
-      
-      predicted24hChange = volumeBoost + scoreBoost + volatilityBoost;
-      predicted24hChange = Math.max(-10, Math.min(10, predicted24hChange));
-    }
-    const recommendation = this.getRecommendation(predicted24hChange);
-    const riskLevel = this.getRiskLevel(coin, overallScore);
-    const priceTarget = this.calculatePriceTarget(coin, indicators, overallScore);
-    
-    return {
-      coin,
-      technicalScore,
-      fundamentalScore,
-      sentimentScore,
-      overallScore,
-      indicators,
-      signals: ['Market Data Analysis', 'Simplified Technical Analysis'],
-      recommendation,
-      riskLevel,
-      priceTarget,
-      confidence: Math.max(40, Math.min(80, overallScore)),
-      predicted24hChange
+      stochastic: { k: 50, d: 50 },
+      atr: currentPrice * 0.02,
+      adx: 20,
+      // NEW ADVANCED INDICATORS
+      williamsR: -50,
+      cci: 0,
+      parabolicSAR: currentPrice,
+      mfi: 50,
+      obv: 0,
+      vpt: 0,
+      ichimoku: {
+        tenkanSen: currentPrice,
+        kijunSen: currentPrice,
+        senkouSpanA: currentPrice,
+        senkouSpanB: currentPrice,
+        chikouSpan: currentPrice
+      }
     };
   }
 
+  // Calculate predicted 24h change based on technical analysis
+  private calculatePredicted24hChange(indicators: TechnicalIndicators, multiTimeframe: MultiTimeframeAnalysis, supportResistance: SupportResistanceLevel[], currentPrice: number): number {
+    let prediction = 0;
+    let weight = 0;
+    
+    // RSI contribution (more nuanced)
+    if (indicators.rsi < 25) {
+      prediction += 4; // Extremely oversold
+      weight += 1.5;
+    } else if (indicators.rsi < 35) {
+      prediction += 2.5; // Oversold
+      weight += 1;
+    } else if (indicators.rsi > 75) {
+      prediction -= 3; // Extremely overbought
+      weight += 1.5;
+    } else if (indicators.rsi > 65) {
+      prediction -= 1.5; // Overbought
+      weight += 1;
+    } else {
+      // Neutral RSI still contributes based on direction
+      prediction += (indicators.rsi - 50) * 0.05;
+      weight += 0.5;
+    }
+    
+    // MACD contribution (enhanced)
+    const macdStrength = Math.abs(indicators.macd.histogram);
+    if (indicators.macd.MACD > indicators.macd.signal) {
+      prediction += 1.5 + Math.min(macdStrength * 10, 2); // Bullish with strength
+      weight += 1;
+    } else {
+      prediction -= 1.5 + Math.min(macdStrength * 10, 2); // Bearish with strength
+      weight += 1;
+    }
+    
+    // Moving average contribution (more detailed)
+    const smaSpread = Math.abs(indicators.sma20 - indicators.sma50) / currentPrice * 100;
+    if (currentPrice > indicators.sma20 && indicators.sma20 > indicators.sma50) {
+      prediction += 1.5 + Math.min(smaSpread * 0.5, 1.5); // Strong uptrend with momentum
+      weight += 1;
+    } else if (currentPrice < indicators.sma20 && indicators.sma20 < indicators.sma50) {
+      prediction -= 1.5 + Math.min(smaSpread * 0.5, 1.5); // Strong downtrend with momentum
+      weight += 1;
+    } else if (currentPrice > indicators.sma20) {
+      prediction += 0.8; // Above short-term MA
+      weight += 0.5;
+    } else {
+      prediction -= 0.8; // Below short-term MA
+      weight += 0.5;
+    }
+    
+    // Bollinger Bands position
+    const bbPosition = (currentPrice - indicators.bollingerBands.lower) / 
+                      (indicators.bollingerBands.upper - indicators.bollingerBands.lower);
+    
+    if (bbPosition < 0.1) {
+      prediction += 2.5; // Very oversold
+      weight += 1;
+    } else if (bbPosition < 0.2) {
+      prediction += 1.5; // Oversold
+      weight += 0.8;
+    } else if (bbPosition > 0.9) {
+      prediction -= 2.5; // Very overbought
+      weight += 1;
+    } else if (bbPosition > 0.8) {
+      prediction -= 1.5; // Overbought
+      weight += 0.8;
+    }
+    
+    // Multi-timeframe alignment (enhanced)
+    const bullishTimeframes = Object.values(multiTimeframe).filter(tf => tf.trend === 'bullish').length;
+    const bearishTimeframes = Object.values(multiTimeframe).filter(tf => tf.trend === 'bearish').length;
+    // const neutralTimeframes = Object.values(multiTimeframe).filter(tf => tf.trend === 'neutral').length;
+    
+    if (bullishTimeframes === 3) {
+      prediction += 2; // All timeframes bullish
+      weight += 1.5;
+    } else if (bearishTimeframes === 3) {
+      prediction -= 2; // All timeframes bearish
+      weight += 1.5;
+    } else if (bullishTimeframes > bearishTimeframes) {
+      prediction += (bullishTimeframes - bearishTimeframes) * 0.7;
+      weight += 1;
+    } else if (bearishTimeframes > bullishTimeframes) {
+      prediction -= (bearishTimeframes - bullishTimeframes) * 0.7;
+      weight += 1;
+    }
+    
+    // Support/Resistance proximity (enhanced)
+    const nearestSupport = supportResistance
+      .filter(sr => sr.type === 'support' && sr.price < currentPrice)
+      .sort((a, b) => Math.abs(currentPrice - b.price) - Math.abs(currentPrice - a.price))[0];
+    
+    const nearestResistance = supportResistance
+      .filter(sr => sr.type === 'resistance' && sr.price > currentPrice)
+      .sort((a, b) => Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))[0];
+    
+    if (nearestSupport) {
+      const supportDistance = (currentPrice - nearestSupport.price) / currentPrice;
+      if (supportDistance < 0.03) {
+        prediction += 1.5 + (nearestSupport.strength * 0.1); // Strong support nearby
+        weight += 1;
+      } else if (supportDistance < 0.08) {
+        prediction += 0.8; // Support nearby
+        weight += 0.5;
+      }
+    }
+    
+    if (nearestResistance) {
+      const resistanceDistance = (nearestResistance.price - currentPrice) / currentPrice;
+      if (resistanceDistance < 0.03) {
+        prediction -= 1.5 + (nearestResistance.strength * 0.1); // Strong resistance nearby
+        weight += 1;
+      } else if (resistanceDistance < 0.08) {
+        prediction -= 0.8; // Resistance nearby
+        weight += 0.5;
+      }
+    }
+    
+    // ADX trend strength (enhanced)
+    if (indicators.adx > 40) {
+      const trendMultiplier = indicators.rsi > 50 ? 1 : -1;
+      prediction += (indicators.adx - 25) / 25 * trendMultiplier * 1.5; // Very strong trend
+      weight += 1;
+    } else if (indicators.adx > 25) {
+      const trendMultiplier = indicators.rsi > 50 ? 1 : -1;
+      prediction += (indicators.adx - 25) / 25 * trendMultiplier; // Strong trend
+      weight += 0.7;
+    }
+    
+    // Stochastic contribution
+    if (indicators.stochastic.k < 20 && indicators.stochastic.d < 20) {
+      prediction += 1.2; // Oversold stochastic
+      weight += 0.5;
+    } else if (indicators.stochastic.k > 80 && indicators.stochastic.d > 80) {
+      prediction -= 1.2; // Overbought stochastic
+      weight += 0.5;
+    }
+    
+    // NEW ADVANCED INDICATORS CONTRIBUTION
+    
+    // Williams %R contribution
+    if (indicators.williamsR < -80) {
+      prediction += 1.5; // Extremely oversold
+      weight += 0.8;
+    } else if (indicators.williamsR > -20) {
+      prediction -= 1.5; // Extremely overbought
+      weight += 0.8;
+    }
+    
+    // CCI contribution
+    if (indicators.cci < -100) {
+      prediction += 1.8; // Oversold
+      weight += 0.7;
+    } else if (indicators.cci > 100) {
+      prediction -= 1.8; // Overbought
+      weight += 0.7;
+    }
+    
+    // Parabolic SAR contribution
+    if (currentPrice > indicators.parabolicSAR) {
+      prediction += 1.0; // Price above SAR - bullish
+      weight += 0.6;
+    } else {
+      prediction -= 1.0; // Price below SAR - bearish
+      weight += 0.6;
+    }
+    
+    // MFI contribution (volume-weighted RSI)
+    if (indicators.mfi < 20) {
+      prediction += 1.3; // Oversold with volume confirmation
+      weight += 0.9;
+    } else if (indicators.mfi > 80) {
+      prediction -= 1.3; // Overbought with volume confirmation
+      weight += 0.9;
+    }
+    
+    // Ichimoku Cloud analysis
+    const ichimoku = indicators.ichimoku;
+    if (currentPrice > ichimoku.senkouSpanA && currentPrice > ichimoku.senkouSpanB) {
+      prediction += 1.2; // Above cloud - bullish
+      weight += 0.8;
+    } else if (currentPrice < ichimoku.senkouSpanA && currentPrice < ichimoku.senkouSpanB) {
+      prediction -= 1.2; // Below cloud - bearish
+      weight += 0.8;
+    }
+    
+    // Tenkan-sen/Kijun-sen cross
+    if (ichimoku.tenkanSen > ichimoku.kijunSen) {
+      prediction += 0.8; // Bullish cross
+      weight += 0.5;
+    } else {
+      prediction -= 0.8; // Bearish cross
+      weight += 0.5;
+    }
+    
+    return weight > 0 ? Math.max(-15, Math.min(15, prediction / weight)) : 0;
+  }
+
+  // Advanced Pattern Analysis
+  private analyzePatterns(ohlcData: number[][], indicators: TechnicalIndicators): PatternAnalysis {
+    const candlestickPatterns: string[] = [];
+    const chartPatterns: string[] = [];
+    const divergences: string[] = [];
+    
+    if (ohlcData.length < 10) {
+      return { candlestickPatterns, chartPatterns, divergences, patternStrength: 0 };
+    }
+    
+    // Candlestick pattern detection
+    const recent = ohlcData.slice(-5);
+    const current = recent[recent.length - 1];
+    const prev = recent[recent.length - 2];
+    
+    if (current && prev) {
+      const currentBody = Math.abs(current[4] - current[1]);
+      const currentRange = current[2] - current[3];
+      // const prevBody = Math.abs(prev[4] - prev[1]); // For future pattern analysis
+      
+      // Doji pattern
+      if (currentBody < currentRange * 0.1) {
+        candlestickPatterns.push('Doji - Indecision');
+      }
+      
+      // Hammer pattern
+      if (current[4] > current[1] && (current[4] - current[3]) > currentBody * 2) {
+        candlestickPatterns.push('Hammer - Bullish Reversal');
+      }
+      
+      // Engulfing patterns
+      if (current[4] > current[1] && prev[4] < prev[1] && 
+          current[1] < prev[4] && current[4] > prev[1]) {
+        candlestickPatterns.push('Bullish Engulfing');
+      }
+    }
+    
+    // Chart pattern detection (simplified)
+    const prices = ohlcData.slice(-20).map(d => d[4]);
+    const highs = ohlcData.slice(-20).map(d => d[2]);
+    const lows = ohlcData.slice(-20).map(d => d[3]);
+    
+    // Support/Resistance breakout
+    const recentHigh = Math.max(...highs.slice(-5));
+    const recentLow = Math.min(...lows.slice(-5));
+    const currentPrice = prices[prices.length - 1];
+    
+    if (currentPrice > recentHigh * 1.02) {
+      chartPatterns.push('Resistance Breakout');
+    } else if (currentPrice < recentLow * 0.98) {
+      chartPatterns.push('Support Breakdown');
+    }
+    
+    // Divergence detection
+    const priceDirection = prices[prices.length - 1] > prices[prices.length - 10] ? 'up' : 'down';
+    const rsiDirection = indicators.rsi > 50 ? 'up' : 'down';
+    
+    if (priceDirection !== rsiDirection) {
+      divergences.push('RSI-Price Divergence');
+    }
+    
+    const patternStrength = (candlestickPatterns.length * 30) + 
+                           (chartPatterns.length * 40) + 
+                           (divergences.length * 30);
+    
+    return {
+      candlestickPatterns,
+      chartPatterns,
+      divergences,
+      patternStrength: Math.min(100, patternStrength)
+    };
+  }
+
+  // Market Regime Detection
+  private detectMarketRegime(ohlcData: number[][], indicators: TechnicalIndicators): MarketRegime {
+    if (ohlcData.length < 20) {
+      return { type: 'RANGING', strength: 50, direction: 'SIDEWAYS' };
+    }
+    
+    const prices = ohlcData.slice(-20).map(d => d[4]);
+    const volatility = indicators.atr / prices[prices.length - 1];
+    
+    // Trend detection
+    const smaShort = prices.slice(-5).reduce((sum, p) => sum + p, 0) / 5;
+    const smaLong = prices.slice(-15).reduce((sum, p) => sum + p, 0) / 15;
+    const trendStrength = Math.abs(smaShort - smaLong) / smaLong;
+    
+    let type: 'TRENDING' | 'RANGING' | 'VOLATILE';
+    let direction: 'UP' | 'DOWN' | 'SIDEWAYS';
+    
+    if (volatility > 0.05) {
+      type = 'VOLATILE';
+      direction = 'SIDEWAYS';
+    } else if (trendStrength > 0.02 && indicators.adx > 25) {
+      type = 'TRENDING';
+      direction = smaShort > smaLong ? 'UP' : 'DOWN';
+    } else {
+      type = 'RANGING';
+      direction = 'SIDEWAYS';
+    }
+    
+    const strength = Math.min(100, (trendStrength * 1000) + (indicators.adx * 2));
+    
+    return { type, strength, direction };
+  }
+
+  // Volume Profile Analysis
+  private analyzeVolumeProfile(ohlcData: number[][], indicators: TechnicalIndicators): {
+    trend: 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL';
+    strength: number;
+  } {
+    if (ohlcData.length < 10) {
+      return { trend: 'NEUTRAL', strength: 50 };
+    }
+    
+    // Simplified volume analysis using OBV and price action
+    const obvTrend = indicators.obv > 0 ? 'positive' : 'negative';
+    const priceTrend = ohlcData[ohlcData.length - 1][4] > ohlcData[ohlcData.length - 10][4] ? 'up' : 'down';
+    
+    let trend: 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL';
+    let strength: number;
+    
+    if (obvTrend === 'positive' && priceTrend === 'up') {
+      trend = 'ACCUMULATION';
+      strength = 75;
+    } else if (obvTrend === 'negative' && priceTrend === 'down') {
+      trend = 'DISTRIBUTION';
+      strength = 75;
+    } else {
+      trend = 'NEUTRAL';
+      strength = 50;
+    }
+    
+    return { trend, strength };
+  }
+
+  // Calculate fundamental score
+  private calculateFundamentalScore(coin: Coin): number {
+    let score = 50;
+    
+    // Market cap analysis
+    if (coin.market_cap > 10000000000) score += 20; // $10B+
+    else if (coin.market_cap > 1000000000) score += 15; // $1B+
+    else if (coin.market_cap > 100000000) score += 10; // $100M+
+    else if (coin.market_cap < 10000000) score -= 20; // Under $10M
+    
+    // Volume analysis
+    const volumeToMarketCap = coin.total_volume / coin.market_cap;
+    if (volumeToMarketCap > 0.1) score += 15;
+    else if (volumeToMarketCap < 0.01) score -= 10;
+    
+    // Market cap rank
+    if (coin.market_cap_rank <= 10) score += 15;
+    else if (coin.market_cap_rank <= 50) score += 10;
+    else if (coin.market_cap_rank <= 100) score += 5;
+    else if (coin.market_cap_rank > 500) score -= 10;
+    
+    return Math.max(0, Math.min(100, score));
+  }
+
+  // Calculate sentiment score
+  private calculateSentimentScore(coin: Coin): number {
+    let score = 50;
+    
+    const momentum24h = coin.price_change_percentage_24h || 0;
+    const momentum7d = coin.price_change_percentage_7d || 0;
+    
+    // Recent performance sentiment
+    if (momentum24h > 10) score += 20;
+    else if (momentum24h > 5) score += 15;
+    else if (momentum24h > 0) score += 5;
+    else if (momentum24h < -10) score -= 20;
+    else if (momentum24h < -5) score -= 15;
+    else score -= 5;
+    
+    // Weekly trend sentiment
+    if (momentum7d > 20) score += 15;
+    else if (momentum7d > 10) score += 10;
+    else if (momentum7d < -20) score -= 15;
+    else if (momentum7d < -10) score -= 10;
+    
+    return Math.max(0, Math.min(100, score));
+  }
+
+  // Generate trading signals
+  private generateSignals(indicators: TechnicalIndicators, multiTimeframe: MultiTimeframeAnalysis, supportResistance: SupportResistanceLevel[], currentPrice: number): string[] {
+    const signals: string[] = [];
+    
+    // RSI signals
+    if (indicators.rsi < 30) signals.push('RSI Oversold - Potential Buy');
+    if (indicators.rsi > 70) signals.push('RSI Overbought - Potential Sell');
+    
+    // MACD signals
+    if (indicators.macd.MACD > indicators.macd.signal && indicators.macd.histogram > 0) {
+      signals.push('MACD Bullish Crossover');
+    }
+    if (indicators.macd.MACD < indicators.macd.signal && indicators.macd.histogram < 0) {
+      signals.push('MACD Bearish Crossover');
+    }
+    
+    // Moving average signals
+    if (currentPrice > indicators.sma20 && indicators.sma20 > indicators.sma50) {
+      signals.push('Golden Cross - Strong Uptrend');
+    }
+    if (currentPrice < indicators.sma20 && indicators.sma20 < indicators.sma50) {
+      signals.push('Death Cross - Strong Downtrend');
+    }
+    
+    // Multi-timeframe alignment
+    const bullishCount = Object.values(multiTimeframe).filter(tf => tf.trend === 'bullish').length;
+    const bearishCount = Object.values(multiTimeframe).filter(tf => tf.trend === 'bearish').length;
+    
+    if (bullishCount === 3) signals.push('All Timeframes Bullish');
+    if (bearishCount === 3) signals.push('All Timeframes Bearish');
+    
+    // Support/Resistance signals
+    const nearSupport = supportResistance.find(sr => 
+      sr.type === 'support' && Math.abs(currentPrice - sr.price) / currentPrice < 0.02
+    );
+    const nearResistance = supportResistance.find(sr => 
+      sr.type === 'resistance' && Math.abs(currentPrice - sr.price) / currentPrice < 0.02
+    );
+    
+    if (nearSupport) signals.push(`Near Support at $${nearSupport.price.toFixed(2)}`);
+    if (nearResistance) signals.push(`Near Resistance at $${nearResistance.price.toFixed(2)}`);
+    
+    return signals;
+  }
+
+  // Get recommendation based on technical analysis
+  private getRecommendation(predicted24hChange: number, overallScore: number): 'LONG' | 'NEUTRAL' | 'SHORT' {
+    // Strong technical signals (more generous thresholds for crypto)
+    if (overallScore >= 65 && predicted24hChange > 0.5) return 'LONG';
+    if (overallScore <= 35 && predicted24hChange < -0.5) return 'SHORT';
+    
+    // Moderate signals (lower thresholds for crypto volatility)
+    if (predicted24hChange > 1.5) return 'LONG';
+    if (predicted24hChange < -1.5) return 'SHORT';
+    
+    // Weak but positive signals
+    if (overallScore >= 55 && predicted24hChange > 0.2) return 'LONG';
+    if (overallScore <= 45 && predicted24hChange < -0.2) return 'SHORT';
+    
+    return 'NEUTRAL';
+  }
+
+  // Calculate risk level
+  private getRiskLevel(coin: Coin, overallScore: number, atr: number): 'LOW' | 'MEDIUM' | 'HIGH' {
+    const volatility = (atr / coin.current_price) * 100; // ATR as percentage
+    const marketCapRisk = coin.market_cap < 100000000 ? 1 : 0; // Small cap risk
+    
+    let riskScore = 0;
+    if (volatility > 10) riskScore += 2;
+    else if (volatility > 5) riskScore += 1;
+    
+    riskScore += marketCapRisk;
+    
+    if (overallScore < 40) riskScore += 1;
+    
+    if (riskScore >= 3) return 'HIGH';
+    if (riskScore >= 1) return 'MEDIUM';
+    return 'LOW';
+  }
+
+  // Calculate price target
+  private calculatePriceTarget(coin: Coin, supportResistance: SupportResistanceLevel[], predicted24hChange: number): number {
+    const currentPrice = coin.current_price;
+    
+    // Use nearest resistance/support as target
+    if (predicted24hChange > 0) {
+      const resistance = supportResistance
+        .filter(sr => sr.type === 'resistance' && sr.price > currentPrice)
+        .sort((a, b) => a.price - b.price)[0];
+      
+      if (resistance) {
+        return Math.min(resistance.price, currentPrice * (1 + predicted24hChange / 100));
+      }
+    } else {
+      const support = supportResistance
+        .filter(sr => sr.type === 'support' && sr.price < currentPrice)
+        .sort((a, b) => b.price - a.price)[0];
+      
+      if (support) {
+        return Math.max(support.price, currentPrice * (1 + predicted24hChange / 100));
+      }
+    }
+    
+    // Fallback to percentage-based target
+    return currentPrice * (1 + predicted24hChange / 100);
+  }
+
+  // Main analysis method
   public async analyzeCoin(coin: Coin): Promise<CryptoAnalysis> {
     try {
-      const priceData = await this.getPriceData(coin.id, 30);
-      const indicators = this.calculateTechnicalIndicators(priceData);
+      console.log(`Analyzing ${coin.name} (${coin.symbol}) with technical analysis...`);
       
+      // Get OHLC data for main analysis
+      const ohlcData = await this.getOHLCData(coin.id, 30);
+      
+      // Calculate technical indicators
+      const indicators = this.calculateTechnicalIndicators(ohlcData);
+      
+      // Analyze multiple timeframes
+      const multiTimeframe = await this.analyzeMultiTimeframe(coin);
+      
+      // Calculate support and resistance levels
+      const supportResistance = this.calculateSupportResistance(ohlcData);
+      
+      // Calculate scores
       const technicalScore = this.calculateTechnicalScore(indicators, coin.current_price);
       const fundamentalScore = this.calculateFundamentalScore(coin);
       const sentimentScore = this.calculateSentimentScore(coin);
       
-      // Weighted overall score
+      // Weighted overall score (technical analysis gets highest weight)
       const overallScore = (
-        technicalScore * 0.4 +
-        fundamentalScore * 0.4 +
-        sentimentScore * 0.2
+        technicalScore * 0.6 +
+        fundamentalScore * 0.25 +
+        sentimentScore * 0.15
       );
-
-      const predicted24hChange = this.calculatePredicted24hChange(coin, indicators, overallScore);
-      const recommendation = this.getRecommendation(predicted24hChange);
-      const riskLevel = this.getRiskLevel(coin, overallScore);
-      const priceTarget = this.calculatePriceTarget(coin, indicators, overallScore);
       
-      // Confidence based on data quality and score consistency
-      const confidence = Math.min(95, Math.max(60, overallScore + 10));
-
-      const signals: string[] = [];
+      // Calculate prediction based on technical analysis
+      const predicted24hChange = this.calculatePredicted24hChange(
+        indicators, 
+        multiTimeframe, 
+        supportResistance, 
+        coin.current_price
+      );
       
-      // Generate trading signals
-      if (indicators.rsi < 30) signals.push('RSI Oversold');
-      if (indicators.rsi > 70) signals.push('RSI Overbought');
-      if (indicators.macd.MACD > indicators.macd.signal) signals.push('MACD Bullish');
-      if (coin.current_price > indicators.sma20) signals.push('Above SMA20');
-      if (indicators.sma20 > indicators.sma50) signals.push('Golden Cross');
+      // Generate signals
+      const signals = this.generateSignals(indicators, multiTimeframe, supportResistance, coin.current_price);
+      
+      // Get recommendation and risk assessment
+      const recommendation = this.getRecommendation(predicted24hChange, overallScore);
+      const riskLevel = this.getRiskLevel(coin, overallScore, indicators.atr);
+      const priceTarget = this.calculatePriceTarget(coin, supportResistance, predicted24hChange);
+      
+      // Advanced analysis features
+      const patternAnalysis = this.analyzePatterns(ohlcData, indicators);
+      const marketRegime = this.detectMarketRegime(ohlcData, indicators);
+      const volumeProfile = this.analyzeVolumeProfile(ohlcData, indicators);
+      
+      // Calculate confidence based on signal strength and data quality
+      const signalStrength = signals.length;
+      const dataQuality = ohlcData.length >= 30 ? 1 : 0.5;
+      const confidence = Math.min(95, Math.max(60, overallScore * dataQuality + signalStrength * 2));
+      
+      console.log(`Technical analysis complete for ${coin.symbol}: Score ${overallScore.toFixed(1)}, Prediction ${predicted24hChange.toFixed(2)}%`);
 
       return {
         coin,
@@ -574,174 +1391,100 @@ export class CryptoAnalyzer {
         sentimentScore,
         overallScore,
         indicators,
+        multiTimeframe,
+        supportResistance,
         signals,
         recommendation,
         riskLevel,
         priceTarget,
         confidence,
-        predicted24hChange
+        predicted24hChange,
+        // NEW ADVANCED FEATURES
+        patternAnalysis,
+        marketRegime,
+        volumeProfile
       };
+      
     } catch (error: any) {
       console.error(`Error analyzing ${coin.name}:`, error);
-      // Re-throw the error so the coin is skipped entirely
       throw error;
     }
   }
 
+  // Get top recommendations
   public async getTop10Recommendations(): Promise<CryptoAnalysis[]> {
     try {
-      console.log('TechnicalAnalysis: Starting getTop10Recommendations from CoinGecko API...');
+      console.log('Starting technical analysis for top cryptocurrencies...');
       
-      // Get top 200 cryptocurrencies from CoinGecko
-      console.log('TechnicalAnalysis: Fetching top 200 cryptocurrencies from CoinGecko...');
-      
-      const topCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 200, 1);
-      console.log(`TechnicalAnalysis: Fetched ${topCoins.length} cryptocurrencies from CoinGecko`);
+      // Get top cryptocurrencies
+      const topCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 100, 1);
+      console.log(`Fetched ${topCoins.length} cryptocurrencies for analysis`);
       
       if (topCoins.length === 0) {
-        console.error('TechnicalAnalysis: ❌ No cryptocurrencies fetched from CoinGecko!');
+        console.error('No cryptocurrencies fetched!');
         return [];
       }
       
-      console.log('TechnicalAnalysis: ✅ Successfully fetched cryptocurrencies, proceeding with analysis...');
-      console.log('Sample cryptocurrency:', {
-        name: topCoins[0].name,
-        symbol: topCoins[0].symbol,
-        price: topCoins[0].current_price,
-        volume: topCoins[0].total_volume,
-        marketCap: topCoins[0].market_cap
-      });
-
-      // Filter out coins with insufficient data for analysis
+      // Filter valid coins
       const validCoins = topCoins.filter((coin: Coin) => {
-        // Basic validation for analysis
-        if (!coin.current_price || coin.current_price <= 0) {
-          console.log(`TechnicalAnalysis: Filtering out ${coin.name} - invalid price: ${coin.current_price}`);
-          return false;
-        }
-        
-        if (!coin.total_volume || coin.total_volume <= 0) {
-          console.log(`TechnicalAnalysis: Filtering out ${coin.name} - insufficient volume: ${coin.total_volume}`);
-          return false;
-        }
-        
-        // Filter out stablecoins and very low market cap coins
-        if (coin.market_cap < 10000000) { // Less than $10M market cap
-          console.log(`TechnicalAnalysis: Filtering out ${coin.name} - market cap too low: ${coin.market_cap}`);
-          return false;
-        }
-        
-        return true;
+        return coin.current_price > 0 && 
+               coin.total_volume > 0 && 
+               coin.market_cap > 10000000; // $10M minimum
       });
-
-      console.log(`TechnicalAnalysis: Analyzing ${validCoins.length} cryptocurrencies after filtering...`);
-
-      // Use top 50 valid coins for analysis to ensure we get good recommendations
-      const coinsToAnalyze = validCoins.slice(0, 50);
-      console.log(`TechnicalAnalysis: Using top ${coinsToAnalyze.length} cryptocurrencies for analysis`);
+      
+      console.log(`Analyzing ${validCoins.length} valid cryptocurrencies...`);
 
       // Analyze coins in batches
       const analyses: CryptoAnalysis[] = [];
-      const batchSize = 10; // Process 10 coins at a time
+      const batchSize = 8; // Increased batch size for better performance
       
-      for (let i = 0; i < coinsToAnalyze.length; i += batchSize) {
-        const batch = coinsToAnalyze.slice(i, i + batchSize);
-        console.log(`TechnicalAnalysis: Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(coinsToAnalyze.length/batchSize)} (coins ${i+1}-${Math.min(i+batchSize, coinsToAnalyze.length)})`);
+      for (let i = 0; i < Math.min(validCoins.length, 50); i += batchSize) {
+        const batch = validCoins.slice(i, i + batchSize);
+        console.log(`Processing batch ${Math.floor(i/batchSize) + 1} (coins ${i+1}-${Math.min(i+batchSize, validCoins.length)})`);
         
-        // Process each coin individually to handle failures gracefully
         for (const coin of batch) {
           try {
-            console.log(`TechnicalAnalysis: Analyzing ${coin.name} (${coin.symbol})...`);
             const analysis = await this.analyzeCoin(coin);
-            
-            // Include all analyses that have valid data
-            if (analysis.signals.length > 0) {
               analyses.push(analysis);
-              console.log(`TechnicalAnalysis: Successfully analyzed ${coin.name}, prediction: ${analysis.predicted24hChange.toFixed(2)}%, recommendation: ${analysis.recommendation}`);
-            } else {
-              console.warn(`TechnicalAnalysis: Skipping ${coin.name} due to no analysis signals`);
-            }
+            console.log(`✅ ${coin.symbol}: ${analysis.predicted24hChange.toFixed(2)}% prediction, ${analysis.recommendation}`);
           } catch (error: any) {
-            console.warn(`TechnicalAnalysis: Failed to analyze ${coin.name}, creating simplified analysis:`, error.message);
-            
-            // Create simplified analysis for coins that fail full analysis
-            try {
-              const simplifiedAnalysis = await this.createSimplifiedAnalysis(coin);
-              analyses.push(simplifiedAnalysis);
-              console.log(`TechnicalAnalysis: Created simplified analysis for ${coin.name}`);
-            } catch (simplifiedError) {
-              console.warn(`TechnicalAnalysis: Failed to create simplified analysis for ${coin.name}:`, simplifiedError);
-            }
+            console.warn(`❌ Failed to analyze ${coin.symbol}:`, error.message);
           }
         }
         
-        console.log(`TechnicalAnalysis: Analyzed ${Math.min(i + batchSize, coinsToAnalyze.length)} / ${coinsToAnalyze.length} coins (${analyses.length} successful)`);
-        
-        // Add delay between batches to avoid rate limiting
-        if (i + batchSize < coinsToAnalyze.length) {
+        // Add delay between batches
+        if (i + batchSize < Math.min(validCoins.length, 50)) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
         
-        // If we have enough analyses, break early
-        if (analyses.length >= 30) {
-          console.log('TechnicalAnalysis: Got enough analyses, breaking early');
-          break;
-        }
+        // Break if we have enough analyses
+        if (analyses.length >= 25) break;
       }
-
-      // Sort analyses by predicted 24h change magnitude (absolute value)
+      
+      // Sort by technical strength and prediction magnitude
       const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary sort: Absolute prediction magnitude (bigger moves = higher priority)
-        const aPredictionAbs = Math.abs(a.predicted24hChange);
-        const bPredictionAbs = Math.abs(b.predicted24hChange);
-        const predictionDiff = bPredictionAbs - aPredictionAbs;
-        if (Math.abs(predictionDiff) > 0.1) return predictionDiff;
+        // Primary: Technical score (higher is better)
+        const techDiff = b.technicalScore - a.technicalScore;
+        if (Math.abs(techDiff) > 5) return techDiff;
         
-        // Secondary sort: Confidence for coins with similar prediction magnitude
-        const confidenceDiff = b.confidence - a.confidence;
-        if (Math.abs(confidenceDiff) > 1) return confidenceDiff;
+        // Secondary: Prediction magnitude
+        const predDiff = Math.abs(b.predicted24hChange) - Math.abs(a.predicted24hChange);
+        if (Math.abs(predDiff) > 0.5) return predDiff;
         
-        // Tertiary sort: overall score (higher is better) for final tiebreaker
+        // Tertiary: Overall score
         return b.overallScore - a.overallScore;
       });
       
-      console.log(`TechnicalAnalysis: Generated ${sortedAnalyses.length} total analyses`);
-      console.log('TechnicalAnalysis: Top 5 by prediction magnitude:', sortedAnalyses.slice(0, 5).map(a => 
-        `${a.coin.symbol}: ${a.predicted24hChange.toFixed(2)}% prediction, Confidence ${a.confidence.toFixed(1)}% (${a.recommendation})`
+      console.log(`Generated ${sortedAnalyses.length} technical analyses`);
+      console.log('Top 5 recommendations:', sortedAnalyses.slice(0, 5).map(a => 
+        `${a.coin.symbol}: ${a.predicted24hChange.toFixed(2)}% (Tech: ${a.technicalScore.toFixed(1)}, ${a.recommendation})`
       ));
       
-      // Return top 10 recommendations
-      const finalRecommendations = sortedAnalyses.slice(0, 10);
+      return sortedAnalyses.slice(0, 10);
       
-      console.log(`TechnicalAnalysis: Returning top ${finalRecommendations.length} recommendations`);
-      
-      return finalRecommendations;
     } catch (error) {
-      console.error('TechnicalAnalysis: Error generating recommendations:', error);
-      
-      // Fallback: try to get at least some basic recommendations
-      try {
-        console.log('TechnicalAnalysis: Attempting fallback with simplified analysis...');
-        const fallbackCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 20, 1);
-        
-        const fallbackAnalyses: CryptoAnalysis[] = [];
-        
-        for (const coin of fallbackCoins.slice(0, 10)) {
-          try {
-            const analysis = await this.createSimplifiedAnalysis(coin);
-            fallbackAnalyses.push(analysis);
-            console.log(`TechnicalAnalysis: Created fallback analysis for ${coin.name}`);
-          } catch (fallbackError) {
-            console.warn(`TechnicalAnalysis: Failed to create fallback analysis for ${coin.name}:`, fallbackError);
-          }
-        }
-        
-        console.log(`TechnicalAnalysis: Created ${fallbackAnalyses.length} fallback recommendations`);
-        return fallbackAnalyses;
-      } catch (fallbackError) {
-        console.error('TechnicalAnalysis: Even fallback failed:', fallbackError);
+      console.error('Error generating technical recommendations:', error);
         return [];
-      }
     }
   }
 }

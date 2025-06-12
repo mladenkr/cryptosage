@@ -1,33 +1,30 @@
-import { CryptoAnalysis } from './technicalAnalysis';
+import { CryptoAnalysis, cryptoAnalyzer } from './technicalAnalysis';
 import { EnhancedCoinData } from './enhancedDataSources';
 
-// Enhanced analysis with multiple AI models
+// Enhanced analysis with technical analysis focus
 export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
   // Override coin to use EnhancedCoinData
   coin: EnhancedCoinData;
   
-  // Multi-model predictions
-  ensemblePrediction: number;
-  modelConfidences: {
-    technical: number;
-    fundamental: number;
-    sentiment: number;
-    momentum: number;
-    volume: number;
+  // Technical analysis confidence scores
+  technicalConfidence: {
+    rsi: number;
+    macd: number;
+    movingAverages: number;
+    supportResistance: number;
+    multiTimeframe: number;
   };
   
   // Advanced metrics
   liquidityScore: number;
   volatilityRisk: number;
   marketCyclePosition: 'ACCUMULATION' | 'MARKUP' | 'DISTRIBUTION' | 'MARKDOWN';
-  correlationBTC: number;
-  socialSentiment: number;
   
   // Risk assessment
   riskFactors: string[];
   opportunityFactors: string[];
   
-  // Time-based predictions
+  // Time-based predictions (based on technical analysis)
   predictions: {
     '1h': number;
     '4h': number;
@@ -37,164 +34,86 @@ export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
 }
 
 export class EnhancedAIAnalysis {
-  private readonly BATCH_SIZE = 100; // Process coins in larger batches for better performance
-  private readonly MAX_COINS_TO_ANALYZE = 2500; // Analyze up to 2500 coins to cover most MEXC pairs
+  private readonly BATCH_SIZE = 12; // Optimized for MEXC API rate limits
+  private readonly MAX_COINS_TO_ANALYZE = 60; // Focus on top volume coins from MEXC
   
-  // Advanced technical analysis with multiple indicators
-  private calculateAdvancedTechnicalScore(coin: EnhancedCoinData): number {
-    let score = 50; // Start with neutral
+  // Calculate technical confidence scores
+  private calculateTechnicalConfidence(analysis: CryptoAnalysis): {
+    rsi: number;
+    macd: number;
+    movingAverages: number;
+    supportResistance: number;
+    multiTimeframe: number;
+  } {
+    const indicators = analysis.indicators;
+    const multiTimeframe = analysis.multiTimeframe;
+    const supportResistance = analysis.supportResistance;
     
-    // Price momentum analysis
-    const momentum24h = coin.price_change_percentage_24h || 0;
-    const momentum7d = coin.price_change_percentage_7d || 0;
-    const momentum30d = coin.price_change_percentage_30d || 0;
+    // RSI confidence (higher when in extreme zones)
+    const rsiConfidence = Math.max(
+      Math.abs(indicators.rsi - 50) * 2, // 0-100 scale
+      20 // Minimum confidence
+    );
     
-    // Multi-timeframe momentum scoring
-    if (momentum24h > 5) score += 15;
-    else if (momentum24h > 2) score += 8;
-    else if (momentum24h < -5) score -= 15;
-    else if (momentum24h < -2) score -= 8;
+    // MACD confidence (based on histogram strength)
+    const macdConfidence = Math.min(
+      Math.abs(indicators.macd.histogram) * 100 + 50,
+      95
+    );
     
-    if (momentum7d > 10) score += 10;
-    else if (momentum7d < -10) score -= 10;
+    // Moving averages confidence (based on separation)
+    const currentPrice = analysis.coin.current_price;
+    const maSeparation = Math.abs(indicators.sma20 - indicators.sma50) / currentPrice * 100;
+    const movingAveragesConfidence = Math.min(maSeparation * 10 + 40, 95);
     
-    if (momentum30d > 20) score += 8;
-    else if (momentum30d < -20) score -= 8;
+    // Support/Resistance confidence (based on number of strong levels)
+    const strongLevels = supportResistance.filter(sr => sr.strength > 3).length;
+    const supportResistanceConfidence = Math.min(strongLevels * 15 + 30, 95);
     
-    // Volume analysis - Enhanced to prioritize high volume coins
-    const volumeToMarketCap = coin.total_volume / coin.market_cap;
-    const absoluteVolume = coin.total_volume;
+    // Multi-timeframe confidence (based on alignment)
+    const timeframes = Object.values(multiTimeframe);
+    const bullishCount = timeframes.filter(tf => tf.trend === 'bullish').length;
+    const bearishCount = timeframes.filter(tf => tf.trend === 'bearish').length;
+    const alignment = Math.max(bullishCount, bearishCount);
+    const multiTimeframeConfidence = alignment * 30 + 10; // 10-100 scale
     
-    // Absolute volume scoring (prioritize high volume coins)
-    if (absoluteVolume > 100000000) score += 25; // $100M+ daily volume
-    else if (absoluteVolume > 50000000) score += 20; // $50M+ daily volume
-    else if (absoluteVolume > 20000000) score += 15; // $20M+ daily volume
-    else if (absoluteVolume > 5000000) score += 10; // $5M+ daily volume
-    else if (absoluteVolume < 1000000) score -= 10; // Low volume penalty
-    
-    // Volume to market cap ratio (liquidity)
-    if (volumeToMarketCap > 0.15) score += 20; // High liquidity
-    else if (volumeToMarketCap > 0.08) score += 12;
-    else if (volumeToMarketCap > 0.03) score += 5;
-    else if (volumeToMarketCap < 0.01) score -= 15; // Low liquidity risk
-    
-    // Market cap rank stability
-    if (coin.market_cap_rank <= 10) score += 15; // Top 10 coins
-    else if (coin.market_cap_rank <= 50) score += 10;
-    else if (coin.market_cap_rank <= 100) score += 5;
-    else if (coin.market_cap_rank > 500) score -= 10; // High risk small caps
-    
-    // Price range analysis (24h)
-    if (coin.high_24h && coin.low_24h && coin.current_price) {
-      const range = (coin.high_24h - coin.low_24h) / coin.low_24h;
-      const position = (coin.current_price - coin.low_24h) / (coin.high_24h - coin.low_24h);
-      
-      if (position > 0.8) score += 8; // Near high
-      else if (position < 0.2) score += 12; // Near low (potential bounce)
-      
-      if (range > 0.15) score -= 5; // High volatility penalty
-    }
-    
-    return Math.max(0, Math.min(100, score));
+    return {
+      rsi: Math.min(rsiConfidence, 95),
+      macd: Math.min(macdConfidence, 95),
+      movingAverages: Math.min(movingAveragesConfidence, 95),
+      supportResistance: Math.min(supportResistanceConfidence, 95),
+      multiTimeframe: Math.min(multiTimeframeConfidence, 95)
+    };
   }
   
-  // Enhanced fundamental analysis
-  private calculateAdvancedFundamentalScore(coin: EnhancedCoinData): number {
-    let score = 50;
-    
-    // Market cap analysis
-    if (coin.market_cap > 10000000000) score += 20; // $10B+ market cap
-    else if (coin.market_cap > 1000000000) score += 15; // $1B+ market cap
-    else if (coin.market_cap > 100000000) score += 10; // $100M+ market cap
-    else if (coin.market_cap < 10000000) score -= 20; // Under $10M is risky
-    
-    // Supply analysis
-    if (coin.max_supply && coin.circulating_supply) {
-      const supplyRatio = coin.circulating_supply / coin.max_supply;
-      if (supplyRatio > 0.9) score += 10; // Most supply in circulation
-      else if (supplyRatio < 0.5) score -= 5; // Large future dilution risk
-    }
-    
-    // Volume consistency (proxy for adoption)
-    const volumeToMarketCap = coin.total_volume / coin.market_cap;
-    if (volumeToMarketCap > 0.1) score += 15; // High trading activity
-    else if (volumeToMarketCap < 0.01) score -= 10; // Low interest
-    
-    // ATH analysis
-    if (coin.ath && coin.current_price) {
-      const athDistance = (coin.ath - coin.current_price) / coin.ath;
-      if (athDistance > 0.8) score += 15; // Far from ATH, potential upside
-      else if (athDistance > 0.5) score += 10;
-      else if (athDistance < 0.1) score -= 5; // Near ATH, limited upside
-    }
-    
-    return Math.max(0, Math.min(100, score));
-  }
-  
-  // Market sentiment analysis
-  private calculateSentimentScore(coin: EnhancedCoinData): number {
-    let score = 50;
-    
-    // Price momentum sentiment
-    const momentum24h = coin.price_change_percentage_24h || 0;
-    const momentum7d = coin.price_change_percentage_7d || 0;
-    
-    // Recent performance sentiment
-    if (momentum24h > 10) score += 20;
-    else if (momentum24h > 5) score += 15;
-    else if (momentum24h > 0) score += 5;
-    else if (momentum24h < -10) score -= 20;
-    else if (momentum24h < -5) score -= 15;
-    else score -= 5;
-    
-    // Weekly trend sentiment
-    if (momentum7d > 20) score += 15;
-    else if (momentum7d > 10) score += 10;
-    else if (momentum7d < -20) score -= 15;
-    else if (momentum7d < -10) score -= 10;
-    
-    // Volume sentiment (high volume = high interest)
-    const volumeToMarketCap = coin.total_volume / coin.market_cap;
-    if (volumeToMarketCap > 0.2) score += 15; // Very high interest
-    else if (volumeToMarketCap > 0.1) score += 10;
-    else if (volumeToMarketCap < 0.02) score -= 10; // Low interest
-    
-    // Market cap rank sentiment (stability)
-    if (coin.market_cap_rank <= 20) score += 10;
-    else if (coin.market_cap_rank > 200) score -= 5;
-    
-    return Math.max(0, Math.min(100, score));
-  }
-  
-  // Liquidity scoring
+  // Calculate liquidity score
   private calculateLiquidityScore(coin: EnhancedCoinData): number {
     const volumeToMarketCap = coin.total_volume / coin.market_cap;
     
-    if (volumeToMarketCap > 0.3) return 95; // Extremely liquid
-    if (volumeToMarketCap > 0.15) return 85; // Very liquid
-    if (volumeToMarketCap > 0.08) return 75; // Good liquidity
-    if (volumeToMarketCap > 0.03) return 60; // Moderate liquidity
-    if (volumeToMarketCap > 0.01) return 40; // Low liquidity
-    return 20; // Very low liquidity
+    if (volumeToMarketCap > 0.3) return 95;
+    if (volumeToMarketCap > 0.15) return 85;
+    if (volumeToMarketCap > 0.08) return 75;
+    if (volumeToMarketCap > 0.03) return 60;
+    if (volumeToMarketCap > 0.01) return 40;
+    return 20;
   }
   
-  // Volatility risk assessment
+  // Calculate volatility risk
   private calculateVolatilityRisk(coin: EnhancedCoinData): number {
     const momentum24h = Math.abs(coin.price_change_percentage_24h || 0);
     const momentum7d = Math.abs(coin.price_change_percentage_7d || 0);
     const momentum30d = Math.abs(coin.price_change_percentage_30d || 0);
     
-    // Average volatility across timeframes
     const avgVolatility = (momentum24h + momentum7d / 7 + momentum30d / 30) / 3;
     
-    if (avgVolatility > 15) return 90; // Very high risk
-    if (avgVolatility > 10) return 75; // High risk
-    if (avgVolatility > 5) return 50; // Moderate risk
-    if (avgVolatility > 2) return 30; // Low risk
-    return 15; // Very low risk
+    if (avgVolatility > 15) return 90;
+    if (avgVolatility > 10) return 75;
+    if (avgVolatility > 5) return 50;
+    if (avgVolatility > 2) return 30;
+    return 15;
   }
   
-  // Market cycle position analysis
+  // Determine market cycle position
   private determineMarketCyclePosition(coin: EnhancedCoinData): 'ACCUMULATION' | 'MARKUP' | 'DISTRIBUTION' | 'MARKDOWN' {
     const momentum24h = coin.price_change_percentage_24h || 0;
     const momentum7d = coin.price_change_percentage_7d || 0;
@@ -216,357 +135,322 @@ export class EnhancedAIAnalysis {
       return 'MARKDOWN';
     }
     
-    // Default to accumulation
     return 'ACCUMULATION';
   }
   
-  // Multi-timeframe predictions
-  private calculatePredictions(coin: EnhancedCoinData, overallScore: number): { '1h': number; '4h': number; '24h': number; '7d': number } {
-    const baseVolatility = Math.abs(coin.price_change_percentage_24h || 0) / 24; // Hourly volatility
-    const momentum24h = coin.price_change_percentage_24h || 0;
-    const momentum7d = coin.price_change_percentage_7d || 0;
+  // Calculate technical-based predictions for different timeframes
+  private calculateTechnicalPredictions(analysis: CryptoAnalysis): {
+    '1h': number;
+    '4h': number;
+    '24h': number;
+    '7d': number;
+  } {
+    const indicators = analysis.indicators;
+    const multiTimeframe = analysis.multiTimeframe;
     
-    // Score influence on predictions (more aggressive)
-    const scoreInfluence = (overallScore - 50) / 25; // -2 to 2 (more range)
+    // Base prediction on 24h technical analysis
+    const base24hPrediction = analysis.predicted24hChange;
     
-    // Market cycle influence
-    let cycleMultiplier = 1;
-    const cyclePosition = this.determineMarketCyclePosition(coin);
-    switch (cyclePosition) {
-      case 'MARKUP': cycleMultiplier = 1.3; break;
-      case 'ACCUMULATION': cycleMultiplier = 1.1; break;
-      case 'DISTRIBUTION': cycleMultiplier = 0.8; break;
-      case 'MARKDOWN': cycleMultiplier = 0.7; break;
-    }
+    // 1-hour prediction (based on short-term indicators)
+    let prediction1h = 0;
     
-    // Volume influence (high volume = more momentum)
-    const volumeInfluence = Math.min(1.5, coin.total_volume / coin.market_cap * 10);
+    // RSI short-term signals
+    if (indicators.rsi < 30) prediction1h += 0.5;
+    else if (indicators.rsi > 70) prediction1h -= 0.3;
     
-    // ATH distance influence (far from ATH = more upside potential)
-    const athDistance = coin.ath ? (coin.ath - coin.current_price) / coin.ath : 0.5;
-    const athInfluence = athDistance > 0.5 ? 1.2 : 0.9;
+    // MACD short-term momentum
+    if (indicators.macd.histogram > 0) prediction1h += 0.3;
+    else prediction1h -= 0.3;
+    
+    // Stochastic short-term
+    if (indicators.stochastic.k < 20) prediction1h += 0.4;
+    else if (indicators.stochastic.k > 80) prediction1h -= 0.4;
+    
+    // 4-hour prediction (intermediate term)
+    let prediction4h = base24hPrediction * 0.3;
+    
+    // Add multi-timeframe influence
+    if (multiTimeframe['1h'].trend === 'bullish') prediction4h += 0.5;
+    else if (multiTimeframe['1h'].trend === 'bearish') prediction4h -= 0.5;
+    
+    // 7-day prediction (longer term trend)
+    let prediction7d = base24hPrediction * 2;
+    
+    // Weekly timeframe influence
+    if (multiTimeframe['1w'].trend === 'bullish') prediction7d += 2;
+    else if (multiTimeframe['1w'].trend === 'bearish') prediction7d -= 2;
+    
+    // ADX trend strength influence
+    const trendStrength = indicators.adx / 100;
+    const trendDirection = indicators.rsi > 50 ? 1 : -1;
+    prediction7d += trendStrength * trendDirection * 3;
     
     return {
-      '1h': this.capPrediction(
-        scoreInfluence * 0.8 + 
-        momentum24h * 0.03 + 
-        (Math.random() - 0.5) * baseVolatility * 2
-      ),
-      '4h': this.capPrediction(
-        scoreInfluence * 2 * cycleMultiplier + 
-        momentum24h * 0.1 + 
-        momentum7d * 0.02 +
-        (Math.random() - 0.5) * baseVolatility * 3
-      ),
-      '24h': this.capPrediction(
-        scoreInfluence * 4 * cycleMultiplier * volumeInfluence * athInfluence + 
-        momentum24h * 0.3 + 
-        momentum7d * 0.1 +
-        (Math.random() - 0.5) * baseVolatility * 5
-      ),
-      '7d': this.capPrediction(
-        scoreInfluence * 10 * cycleMultiplier * athInfluence + 
-        momentum7d * 0.4 + 
-        momentum24h * 0.2 +
-        (Math.random() - 0.5) * baseVolatility * 8
-      )
+      '1h': Math.max(-5, Math.min(5, prediction1h)),
+      '4h': Math.max(-8, Math.min(8, prediction4h)),
+      '24h': base24hPrediction,
+      '7d': Math.max(-20, Math.min(20, prediction7d))
     };
   }
   
-  private capPrediction(prediction: number): number {
-    return Math.max(-25, Math.min(25, prediction)); // Cap at ±25%
-  }
-  
-  // Risk and opportunity factor analysis
-  private analyzeRiskFactors(coin: EnhancedCoinData): string[] {
+  // Analyze risk factors
+  private analyzeRiskFactors(coin: EnhancedCoinData, analysis: CryptoAnalysis): string[] {
     const risks: string[] = [];
     
+    // Market cap risk
     if (coin.market_cap < 50000000) risks.push('Small market cap - high volatility risk');
-    if (coin.total_volume / coin.market_cap < 0.02) risks.push('Low liquidity - difficulty trading');
-    if (Math.abs(coin.price_change_percentage_24h || 0) > 20) risks.push('High volatility - price swings');
-    if (coin.market_cap_rank > 300) risks.push('Low market ranking - speculative asset');
-    if (!coin.max_supply) risks.push('Unlimited supply - inflation risk');
     
-    const athDistance = coin.ath ? (coin.ath - coin.current_price) / coin.ath : 0;
-    if (athDistance < 0.05) risks.push('Near all-time high - limited upside');
+    // Liquidity risk
+    if (coin.total_volume / coin.market_cap < 0.02) risks.push('Low liquidity - difficulty trading');
+    
+    // Technical risks
+    if (analysis.indicators.rsi > 80) risks.push('Extremely overbought - correction likely');
+    if (analysis.indicators.adx < 20) risks.push('Weak trend - sideways movement expected');
+    
+    // Multi-timeframe conflicts
+    const timeframes = Object.values(analysis.multiTimeframe);
+    const conflictingSignals = timeframes.filter(tf => tf.trend !== timeframes[0].trend).length;
+    if (conflictingSignals > 1) risks.push('Conflicting timeframe signals - uncertain direction');
+    
+    // Support/resistance risks
+    const nearResistance = analysis.supportResistance.find(sr => 
+      sr.type === 'resistance' && 
+      Math.abs(coin.current_price - sr.price) / coin.current_price < 0.03
+    );
+    if (nearResistance) risks.push(`Strong resistance at $${nearResistance.price.toFixed(2)}`);
     
     return risks;
   }
   
-  private analyzeOpportunityFactors(coin: EnhancedCoinData): string[] {
+  // Analyze opportunity factors
+  private analyzeOpportunityFactors(coin: EnhancedCoinData, analysis: CryptoAnalysis): string[] {
     const opportunities: string[] = [];
     
+    // Technical opportunities
+    if (analysis.indicators.rsi < 25) opportunities.push('Extremely oversold - bounce potential');
+    if (analysis.indicators.macd.MACD > analysis.indicators.macd.signal && analysis.indicators.macd.histogram > 0) {
+      opportunities.push('Strong bullish MACD crossover');
+    }
+    
+    // Multi-timeframe alignment
+    const bullishTimeframes = Object.values(analysis.multiTimeframe).filter(tf => tf.trend === 'bullish').length;
+    if (bullishTimeframes === 3) opportunities.push('All timeframes aligned bullish');
+    
+    // Support opportunities
+    const nearSupport = analysis.supportResistance.find(sr => 
+      sr.type === 'support' && 
+      Math.abs(coin.current_price - sr.price) / coin.current_price < 0.03
+    );
+    if (nearSupport && nearSupport.strength > 5) {
+      opportunities.push(`Strong support at $${nearSupport.price.toFixed(2)}`);
+    }
+    
+    // Volume opportunities
+    if (coin.total_volume / coin.market_cap > 0.15) opportunities.push('High liquidity - easy entry/exit');
+    
+    // Market position opportunities
     if (coin.market_cap_rank <= 50) opportunities.push('Top 50 coin - established project');
-    if (coin.total_volume / coin.market_cap > 0.15) opportunities.push('High liquidity - easy trading');
-    
-    const athDistance = coin.ath ? (coin.ath - coin.current_price) / coin.ath : 0;
-    if (athDistance > 0.7) opportunities.push('Far from ATH - significant upside potential');
-    
-    if ((coin.price_change_percentage_7d || 0) > 15) opportunities.push('Strong weekly momentum');
-    if (coin.market_cap > 1000000000) opportunities.push('Large market cap - institutional interest');
-    
-    const momentum24h = coin.price_change_percentage_24h || 0;
-    const momentum7d = coin.price_change_percentage_7d || 0;
-    if (momentum24h > 5 && momentum7d > 10) opportunities.push('Multi-timeframe bullish momentum');
     
     return opportunities;
   }
   
-  // Main analysis method
-  async analyzeEnhancedCoin(coin: EnhancedCoinData): Promise<EnhancedCryptoAnalysis> {
-    // Calculate individual scores
-    const technicalScore = this.calculateAdvancedTechnicalScore(coin);
-    const fundamentalScore = this.calculateAdvancedFundamentalScore(coin);
-    const sentimentScore = this.calculateSentimentScore(coin);
+  // Stablecoin detection
+  private isStablecoin(coin: EnhancedCoinData): boolean {
+    const symbol = coin.symbol.toLowerCase();
+    const stablecoinSymbols = [
+      'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 'gusd',
+      'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
+      'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
+      'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
+      'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk',
+      'usdj', 'fdusd', 'usd1', 'pyusd', 'usdm', 'gho', 'crvusd', 'mkusd'
+    ];
     
-    // Model confidences based on data quality
-    const modelConfidences = {
-      technical: Math.min(95, 60 + (coin.sparkline_in_24h?.price?.length || 0) / 10),
-      fundamental: Math.min(95, 70 + (coin.market_cap_rank ? 25 : 0)),
-      sentiment: Math.min(95, 65 + (coin.total_volume > 0 ? 20 : 0)),
-      momentum: Math.min(95, 75 + (coin.price_change_percentage_7d !== undefined ? 15 : 0)),
-      volume: Math.min(95, 80 + (coin.total_volume / coin.market_cap > 0.05 ? 15 : 0))
-    };
+    return stablecoinSymbols.includes(symbol);
+  }
+  
+  // Main enhanced analysis method
+  async analyzeEnhancedCoin(coin: EnhancedCoinData): Promise<EnhancedCryptoAnalysis | null> {
+    // Exclude stablecoins
+    if (this.isStablecoin(coin)) {
+      console.log(`🚫 STABLECOIN EXCLUDED: ${coin.symbol.toUpperCase()}`);
+      return null;
+    }
     
-    // Weighted ensemble score
-    const overallScore = (
-      technicalScore * 0.3 +
-      fundamentalScore * 0.35 +
-      sentimentScore * 0.25 +
-      (coin.total_volume / coin.market_cap > 0.1 ? 10 : 0) // Liquidity bonus
-    );
-    
-    // Ensemble prediction (average of model predictions weighted by confidence)
-    const totalConfidence = Object.values(modelConfidences).reduce((sum, conf) => sum + conf, 0);
-    const ensemblePrediction = (
-      (technicalScore - 50) * modelConfidences.technical +
-      (fundamentalScore - 50) * modelConfidences.fundamental +
-      (sentimentScore - 50) * modelConfidences.sentiment
-    ) / totalConfidence * 0.6; // Scale to reasonable prediction range
-    
-    // Additional metrics
+    try {
+      // Perform technical analysis using the new system
+      const technicalAnalysis = await cryptoAnalyzer.analyzeCoin(coin);
+      
+      // Calculate enhanced metrics
+      const technicalConfidence = this.calculateTechnicalConfidence(technicalAnalysis);
     const liquidityScore = this.calculateLiquidityScore(coin);
     const volatilityRisk = this.calculateVolatilityRisk(coin);
     const marketCyclePosition = this.determineMarketCyclePosition(coin);
-    const correlationBTC = this.calculateBTCCorrelation(coin);
-    const socialSentiment = sentimentScore; // Simplified for now
+      
+      // Calculate technical-based predictions
+      const predictions = this.calculateTechnicalPredictions(technicalAnalysis);
     
     // Risk and opportunity analysis
-    const riskFactors = this.analyzeRiskFactors(coin);
-    const opportunityFactors = this.analyzeOpportunityFactors(coin);
-    
-    // Multi-timeframe predictions
-    const predictions = this.calculatePredictions(coin, overallScore);
-    
-    // Generate recommendation
-    const predicted24hChange = predictions['24h'];
-    const recommendation = this.getRecommendation(predicted24hChange, overallScore);
-    const riskLevel = this.getRiskLevel(coin, overallScore, volatilityRisk);
-    const priceTarget = this.calculatePriceTarget(coin, overallScore);
-    const confidence = Math.min(95, Math.max(60, overallScore));
+      const riskFactors = this.analyzeRiskFactors(coin, technicalAnalysis);
+      const opportunityFactors = this.analyzeOpportunityFactors(coin, technicalAnalysis);
+      
+      console.log(`✅ Enhanced technical analysis for ${coin.symbol}: ${predictions['24h'].toFixed(2)}% prediction`);
     
     return {
+        ...technicalAnalysis,
       coin,
-      technicalScore,
-      fundamentalScore,
-      sentimentScore,
-      overallScore,
-      indicators: this.createMockIndicators(coin), // Simplified indicators
-      signals: this.generateSignals(coin, technicalScore, fundamentalScore),
-      recommendation,
-      riskLevel,
-      priceTarget,
-      confidence,
-      predicted24hChange,
-      
-      // Enhanced fields
-      ensemblePrediction,
-      modelConfidences,
+        technicalConfidence,
       liquidityScore,
       volatilityRisk,
       marketCyclePosition,
-      correlationBTC,
-      socialSentiment,
       riskFactors,
       opportunityFactors,
       predictions
     };
-  }
-  
-  // Get enhanced recommendations for many coins
-  async getEnhancedRecommendations(limit: number = 100): Promise<EnhancedCryptoAnalysis[]> {
-    console.log(`🚀 STREAMLINED AI ANALYSIS: Starting analysis for ${limit} recommendations...`);
-    
-    try {
-      // Import the streamlined data sources
-      const { streamlinedEnhancedDataSources } = await import('./streamlinedEnhancedDataSources');
-      
-      // Use streamlined data fetching - much simpler and more reliable
-      const coins = await streamlinedEnhancedDataSources.getStreamlinedEnhancedCoinList(limit * 2);
-      
-      if (coins.length === 0) {
-        console.warn('⚠️ No coins available from streamlined data sources');
-        return [];
-      }
-
-      console.log(`📊 STREAMLINED: Analyzing ${coins.length} coins from MEXC USDT pairs...`);
-      
-      // Log the first 10 coins to verify they're clean
-      console.log('🔍 STREAMLINED: First 10 coins for analysis:');
-      coins.slice(0, 10).forEach((coin, index) => {
-        console.log(`  ${index + 1}. ${coin.symbol.toUpperCase()} - $${coin.current_price} (Vol: $${coin.total_volume.toLocaleString()})`);
-      });
-      
-      // Process coins in batches for better performance
-      const analyses: EnhancedCryptoAnalysis[] = [];
-      
-      for (let i = 0; i < coins.length; i += this.BATCH_SIZE) {
-        const batch = coins.slice(i, i + this.BATCH_SIZE);
-        console.log(`🔄 STREAMLINED: Processing batch ${Math.floor(i / this.BATCH_SIZE) + 1}/${Math.ceil(coins.length / this.BATCH_SIZE)} (${batch.length} coins)`);
-        
-        const batchPromises = batch.map(coin => this.analyzeEnhancedCoin(coin));
-        const batchResults = await Promise.allSettled(batchPromises);
-        
-        batchResults.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            analyses.push(result.value);
-          } else {
-            console.warn(`Failed to analyze ${batch[index].symbol}:`, result.reason);
-          }
-        });
-        
-        // Small delay between batches to avoid overwhelming the system
-        if (i + this.BATCH_SIZE < coins.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      }
-
-      if (analyses.length === 0) {
-        console.warn('⚠️ No successful analyses completed');
-        return [];
-      }
-
-      console.log(`✅ STREAMLINED: Completed ${analyses.length} analyses`);
-
-      // Sort by prediction magnitude (absolute value) first, then by confidence
-      const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary sort: Absolute value of 24h prediction (larger movements first)
-        const aPredictionMagnitude = Math.abs(a.predictions['24h']);
-        const bPredictionMagnitude = Math.abs(b.predictions['24h']);
-        
-        if (Math.abs(aPredictionMagnitude - bPredictionMagnitude) > 0.1) {
-          return bPredictionMagnitude - aPredictionMagnitude;
-        }
-        
-        // Secondary sort: Confidence (higher confidence first)
-        if (Math.abs(a.confidence - b.confidence) > 1) {
-          return b.confidence - a.confidence;
-        }
-        
-        // Tertiary sort: Liquidity score (higher liquidity first)
-        return b.liquidityScore - a.liquidityScore;
-      });
-
-      const topRecommendations = sortedAnalyses.slice(0, limit);
-      
-      // Final verification - log what we're returning
-      console.log(`🎯 STREAMLINED: Final ${topRecommendations.length} recommendations:`);
-      topRecommendations.slice(0, 10).forEach((analysis, index) => {
-        console.log(`  ${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% (confidence: ${analysis.confidence.toFixed(1)}%)`);
-      });
-      
-      console.log(`🚀 STREAMLINED: Successfully returning ${topRecommendations.length} clean recommendations`);
-      
-      return topRecommendations;
       
     } catch (error) {
-      console.error('❌ STREAMLINED: Error in getEnhancedRecommendations:', error);
-      // Re-throw the error so the UI can show the specific error message
+      console.error(`❌ Failed to analyze ${coin.symbol}:`, error);
+      return null;
+    }
+  }
+  
+  // Get enhanced recommendations using MEXC highest volume coins
+  async getEnhancedRecommendations(limit: number = 100): Promise<EnhancedCryptoAnalysis[]> {
+    console.log(`🚀 MEXC VOLUME-BASED TECHNICAL ANALYSIS: Starting analysis for ${limit} recommendations...`);
+    
+    try {
+      // Import MEXC API for highest volume coins
+      const { mexcApiService } = await import('./mexcApi');
+      
+      console.log('📊 Fetching MEXC highest volume coins...');
+      const mexcCoins = await mexcApiService.getAllMEXCCoins();
+      
+      if (mexcCoins.length === 0) {
+        console.warn('⚠️ MEXC API returned no data, falling back to streamlined data sources...');
+        
+        // Fallback to streamlined data sources
+        try {
+          const { streamlinedEnhancedDataSources } = await import('./streamlinedEnhancedDataSources');
+          console.log('📊 Using streamlined enhanced data sources as fallback...');
+          const fallbackCoins = await streamlinedEnhancedDataSources.getStreamlinedEnhancedCoinList(this.MAX_COINS_TO_ANALYZE);
+          
+          if (fallbackCoins.length === 0) {
+            throw new Error('Both MEXC API and fallback data sources returned no data');
+          }
+          
+          console.log(`✅ Fallback successful: Got ${fallbackCoins.length} coins from streamlined sources`);
+          return this.analyzeCoinsWithTechnicalAnalysis(fallbackCoins, limit);
+          
+        } catch (fallbackError) {
+          console.error('❌ Fallback to streamlined sources also failed:', fallbackError);
+          throw new Error('No coin data available from MEXC API or fallback sources. Please check network connectivity.');
+        }
+      }
+      
+      // Take top volume coins and convert to EnhancedCoinData format
+      const topVolumeCoins = mexcCoins.slice(0, this.MAX_COINS_TO_ANALYZE);
+      const enhancedCoins: EnhancedCoinData[] = topVolumeCoins.map(coin => ({
+        ...coin,
+        // Enhanced data fields (using MEXC data where available)
+        market_cap: coin.market_cap || coin.total_volume * 100, // Estimate if not available
+        market_cap_rank: coin.market_cap_rank || 999,
+        fully_diluted_valuation: coin.fully_diluted_valuation || coin.market_cap,
+        circulating_supply: coin.circulating_supply || 0,
+        total_supply: coin.total_supply || 0,
+        max_supply: coin.max_supply,
+        ath: coin.ath || coin.current_price,
+        ath_change_percentage: coin.ath_change_percentage || 0,
+        ath_date: coin.ath_date || new Date().toISOString(),
+        atl: coin.atl || coin.current_price,
+        atl_change_percentage: coin.atl_change_percentage || 0,
+        atl_date: coin.atl_date || new Date().toISOString(),
+        roi: coin.roi,
+        last_updated: coin.last_updated || new Date().toISOString(),
+        sparkline_in_7d: coin.sparkline_in_7d || { price: [] },
+        sparkline_in_24h: coin.sparkline_in_24h || { price: [] },
+        price_change_percentage_7d: coin.price_change_percentage_24h || 0, // Fallback
+        price_change_percentage_14d: coin.price_change_percentage_24h || 0,
+        price_change_percentage_30d: coin.price_change_percentage_24h || 0,
+        price_change_percentage_200d: coin.price_change_percentage_24h || 0,
+        price_change_percentage_1y: coin.price_change_percentage_24h || 0,
+        market_cap_change_24h: coin.market_cap_change_24h || 0,
+        market_cap_change_percentage_24h: coin.market_cap_change_percentage_24h || coin.price_change_percentage_24h,
+        // MEXC-specific data
+        original_price: coin.current_price,
+        price_source: 'MEXC' as const,
+        price_updated_at: new Date().toISOString(),
+        mexc_data: coin.mexc_data
+      }));
+      
+      console.log(`📈 Starting technical analysis on ${enhancedCoins.length} MEXC highest volume coins...`);
+      console.log(`🔥 Top 10 by volume: ${enhancedCoins.slice(0, 10).map(c => `${c.symbol.toUpperCase()}($${c.total_volume.toLocaleString()})`).join(', ')}`);
+      
+      return this.analyzeCoinsWithTechnicalAnalysis(enhancedCoins, limit);
+      
+    } catch (error) {
+      console.error('❌ MEXC TECHNICAL ANALYSIS: Error in getEnhancedRecommendations:', error);
       throw error;
     }
   }
   
-  // Helper methods
-  private calculateBTCCorrelation(coin: EnhancedCoinData): number {
-    // Simplified correlation calculation
-    // In a real implementation, this would analyze price movements vs BTC
-    if (coin.symbol.toLowerCase() === 'btc') return 1.0;
-    if (coin.market_cap_rank <= 10) return 0.7 + Math.random() * 0.2; // 0.7-0.9
-    if (coin.market_cap_rank <= 50) return 0.5 + Math.random() * 0.3; // 0.5-0.8
-    return 0.3 + Math.random() * 0.4; // 0.3-0.7
-  }
-  
-  private getRecommendation(predicted24hChange: number, overallScore: number): 'LONG' | 'NEUTRAL' | 'SHORT' {
-    // More balanced thresholds for better signal distribution
+  // Separate method for analyzing coins with technical analysis
+  private async analyzeCoinsWithTechnicalAnalysis(enhancedCoins: EnhancedCoinData[], limit: number): Promise<EnhancedCryptoAnalysis[]> {
+    // Analyze coins in batches
+    const analyses: EnhancedCryptoAnalysis[] = [];
+    const batchSize = this.BATCH_SIZE;
     
-    // LONG signals - more generous thresholds
-    if (overallScore >= 70) return 'LONG'; // High AI score = LONG
-    if (overallScore >= 60 && predicted24hChange > 1) return 'LONG'; // Good score + positive prediction
-    if (overallScore >= 55 && predicted24hChange > 2) return 'LONG'; // Decent score + strong prediction
+    for (let i = 0; i < enhancedCoins.length; i += batchSize) {
+      const batch = enhancedCoins.slice(i, i + batchSize);
+      console.log(`🔍 Processing technical analysis batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(enhancedCoins.length/batchSize)}`);
+      
+      // Process batch sequentially to avoid API rate limits
+      for (const coin of batch) {
+        try {
+          const analysis = await this.analyzeEnhancedCoin(coin);
+          if (analysis) {
+            analyses.push(analysis);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Skipped ${coin.symbol} due to analysis error:`, error);
+        }
+      }
+      
+      // Add delay between batches
+      if (i + batchSize < enhancedCoins.length) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
+      // Break if we have enough analyses
+      if (analyses.length >= limit) break;
+    }
     
-    // SHORT signals - now actually possible to get
-    if (overallScore <= 35) return 'SHORT'; // Low AI score = SHORT
-    if (overallScore <= 45 && predicted24hChange < -1) return 'SHORT'; // Poor score + negative prediction
-    if (overallScore <= 50 && predicted24hChange < -2) return 'SHORT'; // Mediocre score + strong negative prediction
+    // Sort by technical strength and prediction confidence
+    const sortedAnalyses = analyses.sort((a, b) => {
+      // Primary: Technical score (higher is better)
+      const techDiff = b.technicalScore - a.technicalScore;
+      if (Math.abs(techDiff) > 5) return techDiff;
+      
+      // Secondary: Prediction magnitude
+      const predDiff = Math.abs(b.predictions['24h']) - Math.abs(a.predictions['24h']);
+      if (Math.abs(predDiff) > 0.5) return predDiff;
+      
+      // Tertiary: Multi-timeframe confidence
+      const confDiff = b.technicalConfidence.multiTimeframe - a.technicalConfidence.multiTimeframe;
+      return confDiff;
+    });
+
+    const topRecommendations = sortedAnalyses.slice(0, limit);
     
-    // NEUTRAL for everything in between
-    return 'NEUTRAL';
-  }
-  
-  private getRiskLevel(coin: EnhancedCoinData, overallScore: number, volatilityRisk: number): 'LOW' | 'MEDIUM' | 'HIGH' {
-    if (volatilityRisk > 75 || coin.market_cap < 100000000) return 'HIGH';
-    if (volatilityRisk > 50 || overallScore < 50) return 'MEDIUM';
-    return 'LOW';
-  }
-  
-  private calculatePriceTarget(coin: EnhancedCoinData, overallScore: number): number {
-    const currentPrice = coin.current_price;
-    let multiplier = 1;
+    console.log(`🎯 TECHNICAL ANALYSIS: Final ${topRecommendations.length} recommendations:`);
+    topRecommendations.slice(0, 10).forEach((analysis, index) => {
+      const volume = analysis.coin.total_volume;
+      const source = analysis.coin.price_source || 'CoinGecko';
+      console.log(`  ${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% (Tech: ${analysis.technicalScore.toFixed(1)}, ${analysis.recommendation}, Vol: $${volume.toLocaleString()}, Source: ${source})`);
+    });
     
-    if (overallScore >= 80) multiplier = 1.15; // 15% upside
-    else if (overallScore >= 70) multiplier = 1.10; // 10% upside
-    else if (overallScore >= 60) multiplier = 1.05; // 5% upside
-    else if (overallScore < 40) multiplier = 0.95; // 5% downside
+    console.log(`🚀 TECHNICAL ANALYSIS: Successfully returning ${topRecommendations.length} recommendations`);
     
-    // Adjust for market cap (smaller caps can move more)
-    if (coin.market_cap < 1000000000) multiplier = 1 + (multiplier - 1) * 1.5;
-    else if (coin.market_cap > 10000000000) multiplier = 1 + (multiplier - 1) * 0.7;
-    
-    return currentPrice * multiplier;
-  }
-  
-  private createMockIndicators(coin: EnhancedCoinData): any {
-    // Simplified indicators based on available data
-    const currentPrice = coin.current_price;
-    return {
-      rsi: 50 + (coin.price_change_percentage_24h || 0) * 2,
-      macd: { MACD: 0, signal: 0, histogram: 0 },
-      sma20: currentPrice * 0.98,
-      sma50: currentPrice * 0.96,
-      ema12: currentPrice * 0.99,
-      ema26: currentPrice * 0.97,
-      bollingerBands: {
-        upper: currentPrice * 1.05,
-        middle: currentPrice,
-        lower: currentPrice * 0.95
-      },
-      stochastic: { k: 50, d: 50 }
-    };
-  }
-  
-  private generateSignals(coin: EnhancedCoinData, technicalScore: number, fundamentalScore: number): string[] {
-    const signals: string[] = [];
-    
-    if (technicalScore > 70) signals.push('Strong Technical Setup');
-    if (fundamentalScore > 70) signals.push('Strong Fundamentals');
-    if (coin.total_volume / coin.market_cap > 0.15) signals.push('High Liquidity');
-    if ((coin.price_change_percentage_24h || 0) > 5) signals.push('Bullish Momentum');
-    if (coin.market_cap_rank <= 50) signals.push('Top 50 Asset');
-    
-    const athDistance = coin.ath ? (coin.ath - coin.current_price) / coin.ath : 0;
-    if (athDistance > 0.5) signals.push('Significant Upside Potential');
-    
-    return signals;
+    return topRecommendations;
   }
 }
 

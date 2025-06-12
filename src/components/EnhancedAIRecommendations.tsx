@@ -1013,15 +1013,15 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                       ))}
                     </Box>
 
-                    {/* Model Confidences */}
+                    {/* Technical Confidence */}
                     <Typography variant="subtitle2" gutterBottom sx={{ fontSize: '0.8rem' }}>
-                      AI Model Scores
+                      Technical Indicators
                     </Typography>
                     <Box sx={{ mb: 2 }}>
-                      {Object.entries(analysis.modelConfidences).map(([model, confidence]) => (
-                        <Box key={model} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      {Object.entries(analysis.technicalConfidence).map(([indicator, confidence]) => (
+                        <Box key={indicator} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                           <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                            {model}
+                            {indicator.replace(/([A-Z])/g, ' $1').trim()}
                           </Typography>
                           <Typography variant="caption" fontWeight="bold">
                             {confidence.toFixed(0)}%
@@ -1048,9 +1048,9 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption">BTC Correlation</Typography>
+                        <Typography variant="caption">Market Cycle</Typography>
                         <Typography variant="caption" fontWeight="bold">
-                          {analysis.correlationBTC.toFixed(2)}
+                          {analysis.marketCyclePosition}
                         </Typography>
                       </Box>
                     </Box>
@@ -1176,17 +1176,17 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   </List>
                 </Grid>
 
-                {/* Model Confidences */}
+                {/* Technical Confidence */}
                 <Grid item xs={12}>
                   <Typography variant="h6" gutterBottom>
-                    AI Model Confidences
+                    Technical Analysis Confidence
                   </Typography>
                   <Grid container spacing={2}>
-                    {Object.entries(selectedAnalysis.modelConfidences).map(([model, confidence]) => (
-                      <Grid item xs={12} sm={6} md={4} key={model}>
+                    {Object.entries(selectedAnalysis.technicalConfidence).map(([indicator, confidence]) => (
+                      <Grid item xs={12} sm={6} md={4} key={indicator}>
                         <Box sx={{ textAlign: 'center', p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                           <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
-                            {model}
+                            {indicator.replace(/([A-Z])/g, ' $1').trim()}
                           </Typography>
                           <Typography variant="h6" color="primary">
                             {confidence.toFixed(0)}%
