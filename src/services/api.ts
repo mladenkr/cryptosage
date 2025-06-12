@@ -852,32 +852,35 @@ export const coinGeckoApi = {
 
   // New MEXC-first approach: Get all MEXC coins and enhance with CoinGecko data
   getCoinsWithMEXCPrimary: async (
-    limit: number = 500
+    limit: number = 1500 // Increased default limit to allow more coins for analysis
   ): Promise<Coin[]> => {
     try {
-      console.log('Fetching coins with MEXC as primary source...');
+      console.log(`🚀 API: Fetching coins with MEXC as primary source (limit: ${limit})...`);
       
       // Get all MEXC USDT trading pairs as primary list
       const mexcCoins = await mexcApiService.getAllMEXCCoins();
+      console.log(`📊 API: Got ${mexcCoins.length} MEXC coins from API`);
       
       if (mexcCoins.length === 0) {
-        console.warn('No MEXC coins found, falling back to CoinGecko');
+        console.warn('⚠️ API: No MEXC coins found, falling back to CoinGecko');
         return await fetchCoinsWithFallback('usd', 'market_cap_desc', limit, 1);
       }
       
-      // Limit to requested number
-      const limitedMexcCoins = mexcCoins.slice(0, limit);
+      // Use more coins if available, but respect the limit
+      const coinsToProcess = Math.min(mexcCoins.length, limit);
+      const limitedMexcCoins = mexcCoins.slice(0, coinsToProcess);
+      console.log(`🔄 API: Processing ${limitedMexcCoins.length} MEXC coins (requested: ${limit}, available: ${mexcCoins.length})`);
       
-             // Enhance with CoinGecko data for market cap, supply, and other metadata
-       const enhancedCoins = await coinGeckoApi.enhanceMEXCCoinsWithCoinGecko(limitedMexcCoins);
+      // Enhance with CoinGecko data for market cap, supply, and other metadata
+      const enhancedCoins = await coinGeckoApi.enhanceMEXCCoinsWithCoinGecko(limitedMexcCoins);
       
       currentDataSource = `MEXC Primary (${enhancedCoins.length} coins)`;
-      console.log(`Successfully fetched ${enhancedCoins.length} coins with MEXC as primary source`);
+      console.log(`✅ API: Successfully fetched ${enhancedCoins.length} coins with MEXC as primary source`);
       
       return enhancedCoins;
       
     } catch (error) {
-      console.error('Error in getCoinsWithMEXCPrimary:', error);
+      console.error('❌ API: Error in getCoinsWithMEXCPrimary:', error);
       // Fallback to regular CoinGecko if MEXC fails
       return await fetchCoinsWithFallback('usd', 'market_cap_desc', limit, 1);
     }
@@ -888,30 +891,143 @@ export const coinGeckoApi = {
     try {
       console.log(`Enhancing ${mexcCoins.length} MEXC coins with CoinGecko metadata...`);
       
-      // Get CoinGecko data for comparison and enhancement
-      const coinGeckoCoins = await fetchCoinsWithFallback('usd', 'market_cap_desc', 1000, 1);
+      // Get a comprehensive list of CoinGecko coins for matching
+      const coinGeckoCoins = await fetchCoinsWithFallback('usd', 'market_cap_desc', 2000, 1);
+      console.log(`Fetched ${coinGeckoCoins.length} CoinGecko coins for matching`);
       
-      // Create a map of CoinGecko coins by ID for quick lookup
-      const coinGeckoMap = new Map<string, Coin>();
+      // Create multiple maps for better matching
+      const coinGeckoBySymbol = new Map<string, Coin>();
+      const coinGeckoById = new Map<string, Coin>();
+      const coinGeckoByName = new Map<string, Coin>();
+      
       coinGeckoCoins.forEach(coin => {
-        coinGeckoMap.set(coin.id, coin);
-        // Also map by symbol for better matching
-        coinGeckoMap.set(coin.symbol.toLowerCase(), coin);
+        coinGeckoById.set(coin.id, coin);
+        coinGeckoBySymbol.set(coin.symbol.toLowerCase(), coin);
+        coinGeckoByName.set(coin.name.toLowerCase(), coin);
       });
       
+      console.log(`Created lookup maps: ${coinGeckoById.size} by ID, ${coinGeckoBySymbol.size} by symbol`);
+      
+      // Enhanced symbol mapping for better matching
+      const symbolMappings: { [key: string]: string } = {
+        'btc': 'bitcoin',
+        'eth': 'ethereum', 
+        'bnb': 'binancecoin',
+        'ada': 'cardano',
+        'sol': 'solana',
+        'xrp': 'ripple',
+        'dot': 'polkadot',
+        'doge': 'dogecoin',
+        'avax': 'avalanche-2',
+        'matic': 'matic-network',
+        'link': 'chainlink',
+        'ltc': 'litecoin',
+        'bch': 'bitcoin-cash',
+        'xlm': 'stellar',
+        'vet': 'vechain',
+        'fil': 'filecoin',
+        'trx': 'tron',
+        'etc': 'ethereum-classic',
+        'atom': 'cosmos',
+        'near': 'near',
+        'algo': 'algorand',
+        'mana': 'decentraland',
+        'sand': 'the-sandbox',
+        'gala': 'gala',
+        'axs': 'axie-infinity',
+        'chz': 'chiliz',
+        'ens': 'ethereum-name-service',
+        'lrc': 'loopring',
+        'cro': 'crypto-com-chain',
+        'ftm': 'fantom',
+        'one': 'harmony',
+        'hbar': 'hedera-hashgraph',
+        'icp': 'internet-computer',
+        'theta': 'theta-token',
+        'egld': 'elrond-erd-2',
+        'xtz': 'tezos',
+        'eos': 'eos',
+        'neo': 'neo',
+        'waves': 'waves',
+        'zil': 'zilliqa',
+        'icx': 'icon',
+        'ont': 'ontology',
+        'qtum': 'qtum',
+        'zec': 'zcash',
+        'dash': 'dash',
+        'dcr': 'decred',
+        'xmr': 'monero',
+        'bsv': 'bitcoin-sv',
+        'btg': 'bitcoin-gold',
+        'dgb': 'digibyte',
+        'rvn': 'ravencoin',
+        'sc': 'siacoin',
+        'zen': 'horizen',
+        'kmd': 'komodo',
+        'ark': 'ark',
+        'lsk': 'lisk',
+        'strat': 'stratis',
+        'nano': 'nano',
+        'xem': 'nem',
+        'bat': 'basic-attention-token',
+        'zrx': '0x',
+        'omg': 'omisego',
+        'knc': 'kyber-network-crystal',
+        'mkr': 'maker',
+        'dai': 'dai',
+        'comp': 'compound-governance-token',
+        'aave': 'aave',
+        'uni': 'uniswap',
+        'sushi': 'sushi',
+        'cake': 'pancakeswap-token',
+        '1inch': '1inch',
+        'crv': 'curve-dao-token',
+        'yfi': 'yearn-finance',
+        'snx': 'havven',
+        'uma': 'uma',
+        'bal': 'balancer',
+        'ren': 'republic-protocol'
+      };
+      
       // Enhance MEXC coins with CoinGecko data
-      const enhancedCoins = mexcCoins.map(mexcCoin => {
-        // Try to find matching CoinGecko coin by ID first, then by symbol
-        let coinGeckoCoin = coinGeckoMap.get(mexcCoin.id);
+      const enhancedCoins: Coin[] = [];
+      let matchedCount = 0;
+      let unmatchedCount = 0;
+      
+      for (const mexcCoin of mexcCoins) {
+        let coinGeckoCoin: Coin | undefined;
+        
+        // Try multiple matching strategies
+        // 1. Try direct ID match (if MEXC coin already has proper CoinGecko ID)
+        if (mexcCoin.id && mexcCoin.id !== mexcCoin.symbol) {
+          coinGeckoCoin = coinGeckoById.get(mexcCoin.id);
+        }
+        
+        // 2. Try symbol mapping
         if (!coinGeckoCoin) {
-          coinGeckoCoin = coinGeckoMap.get(mexcCoin.symbol.toLowerCase());
+          const mappedId = symbolMappings[mexcCoin.symbol.toLowerCase()];
+          if (mappedId) {
+            coinGeckoCoin = coinGeckoById.get(mappedId);
+          }
+        }
+        
+        // 3. Try direct symbol match
+        if (!coinGeckoCoin) {
+          coinGeckoCoin = coinGeckoBySymbol.get(mexcCoin.symbol.toLowerCase());
+        }
+        
+        // 4. Try name-based matching (fallback)
+        if (!coinGeckoCoin) {
+          coinGeckoCoin = coinGeckoByName.get(mexcCoin.name.toLowerCase());
         }
         
         if (coinGeckoCoin) {
-          // Merge MEXC real-time data with CoinGecko metadata
-          return {
-            ...coinGeckoCoin, // Start with CoinGecko data for metadata
-            // Override with MEXC real-time data
+          // Successfully matched - merge MEXC real-time data with CoinGecko metadata
+          const enhancedCoin: Coin = {
+            // Start with CoinGecko data for all metadata (including market cap!)
+            ...coinGeckoCoin,
+            
+            // Override with MEXC real-time price data
             current_price: mexcCoin.current_price,
             high_24h: mexcCoin.high_24h,
             low_24h: mexcCoin.low_24h,
@@ -919,38 +1035,69 @@ export const coinGeckoApi = {
             price_change_percentage_24h: mexcCoin.price_change_percentage_24h,
             total_volume: mexcCoin.total_volume,
             last_updated: mexcCoin.last_updated,
-            // Keep MEXC metadata
+            
+            // Add MEXC metadata
             original_price: mexcCoin.original_price,
-            price_source: mexcCoin.price_source,
+            price_source: 'Hybrid' as const, // Indicates CoinGecko metadata + MEXC prices
             price_updated_at: mexcCoin.price_updated_at,
             mexc_data: mexcCoin.mexc_data
           };
+          
+          enhancedCoins.push(enhancedCoin);
+          matchedCount++;
         } else {
-          // No CoinGecko match found, use MEXC data as-is
-          console.log(`No CoinGecko match found for ${mexcCoin.symbol.toUpperCase()}, using MEXC data only`);
-          return mexcCoin;
+          // No CoinGecko match found - use MEXC data as-is but mark it
+          const mexcOnlyCoin: Coin = {
+            ...mexcCoin,
+            price_source: 'MEXC' as const,
+            // Estimate market cap if we have circulating supply, otherwise leave as 0
+            market_cap: mexcCoin.circulating_supply > 0 ? 
+              mexcCoin.current_price * mexcCoin.circulating_supply : 0
+          };
+          
+          enhancedCoins.push(mexcOnlyCoin);
+          unmatchedCount++;
+          
+          // Log unmatched coins for debugging (limit to first 10)
+          if (unmatchedCount <= 10) {
+            console.log(`No CoinGecko match for MEXC coin: ${mexcCoin.symbol.toUpperCase()} (${mexcCoin.name})`);
+          }
         }
-      });
+      }
       
-      // Sort by market cap (CoinGecko data) or volume (MEXC data) for better ranking
+      console.log(`Enhancement complete: ${matchedCount} matched with CoinGecko, ${unmatchedCount} MEXC-only`);
+      
+      // Sort by market cap (for matched coins) or volume (for MEXC-only coins)
       enhancedCoins.sort((a, b) => {
-        // Prefer market cap if available, otherwise use volume
-        const aValue = a.market_cap > 0 ? a.market_cap : a.total_volume;
-        const bValue = b.market_cap > 0 ? b.market_cap : b.total_volume;
-        return bValue - aValue;
+        // Prioritize coins with market cap data
+        if (a.market_cap > 0 && b.market_cap === 0) return -1;
+        if (b.market_cap > 0 && a.market_cap === 0) return 1;
+        
+        // Both have market cap - sort by market cap
+        if (a.market_cap > 0 && b.market_cap > 0) {
+          return b.market_cap - a.market_cap;
+        }
+        
+        // Both don't have market cap - sort by volume
+        return b.total_volume - a.total_volume;
       });
       
-      // Update market cap ranks
+      // Update market cap ranks based on final sorting
       enhancedCoins.forEach((coin, index) => {
         coin.market_cap_rank = index + 1;
       });
       
-      console.log(`Enhanced ${enhancedCoins.length} MEXC coins with CoinGecko metadata`);
+      console.log(`Final enhanced coin list: ${enhancedCoins.length} coins`);
+      console.log(`Top 5 by market cap: ${enhancedCoins.slice(0, 5).map(c => 
+        `${c.symbol.toUpperCase()}: $${(c.market_cap / 1000000000).toFixed(1)}B`
+      ).join(', ')}`);
+      
       return enhancedCoins;
       
     } catch (error) {
       console.error('Error enhancing MEXC coins with CoinGecko data:', error);
       // Return MEXC coins as-is if enhancement fails
+      console.log('Falling back to MEXC-only data');
       return mexcCoins;
     }
   },

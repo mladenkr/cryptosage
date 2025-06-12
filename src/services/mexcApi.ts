@@ -344,8 +344,60 @@ class MEXCApiService {
       // Get all 24hr tickers for USDT pairs
       const tickers = await this.getAll24hrTickers();
       
+      // Filter out stablecoins first before processing
+      const filteredTickers = tickers.filter(ticker => {
+        const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
+        
+        // Comprehensive stablecoin list
+        const stablecoins = [
+          'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 'gusd',
+          'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
+          'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
+          'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
+          'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds',
+          'usdj', 'usdn', 'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax'
+        ];
+        
+        // Check if it's a stablecoin
+        if (stablecoins.includes(baseSymbol)) {
+          console.log(`🚫 Filtered out stablecoin: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Also filter by name patterns for additional stablecoin detection
+        const stablecoinPatterns = ['usd', 'dollar', 'stable', 'peg'];
+        if (stablecoinPatterns.some(pattern => baseSymbol.includes(pattern))) {
+          console.log(`🚫 Filtered out potential stablecoin by pattern: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Filter out wrapped tokens and staked tokens
+        const wrappedTokens = ['weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol'];
+        const stakedTokens = ['steth', 'reth', 'cbeth', 'sfrxeth', 'stmatic', 'stsol'];
+        
+        if (wrappedTokens.includes(baseSymbol) || stakedTokens.includes(baseSymbol)) {
+          console.log(`🚫 Filtered out wrapped/staked token: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Filter by wrapped/staked patterns
+        if (baseSymbol.startsWith('w') && ['eth', 'btc', 'bnb', 'matic', 'avax', 'ftm', 'sol'].some(token => baseSymbol.includes(token))) {
+          console.log(`🚫 Filtered out wrapped token by pattern: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        if (baseSymbol.includes('staked') || baseSymbol.includes('liquid')) {
+          console.log(`🚫 Filtered out staked token by pattern: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        return true;
+      });
+      
+      console.log(`🔍 Filtered out ${tickers.length - filteredTickers.length} stablecoins from ${tickers.length} total tickers`);
+      
       // Convert MEXC tickers to Coin format
-      const mexcCoins: Coin[] = tickers.map((ticker, index) => {
+      const mexcCoins: Coin[] = filteredTickers.map((ticker, index) => {
         const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
         const coinId = this.getCoinGeckoIdFromSymbol(baseSymbol);
         
@@ -416,18 +468,67 @@ class MEXCApiService {
         return bMexcVolume - aMexcVolume;
       });
       
-      // Filter out very low volume coins (less than $10k daily volume)
-      const filteredCoins = mexcCoins.filter(coin => coin.total_volume > 10000);
+      // Apply additional filters: volume and price stability
+      const filteredCoins = mexcCoins.filter(coin => {
+        // Volume filter - reduced from $10k to $1k for more coins
+        if (coin.total_volume <= 1000) {
+          return false;
+        }
+        
+        // Price stability filter to catch remaining stablecoins
+        const priceChangeAbs = Math.abs(coin.price_change_percentage_24h);
+        const currentPrice = coin.current_price;
+        
+        // If price is near $1 and has very low volatility, likely a stablecoin
+        if (currentPrice > 0.95 && currentPrice < 1.05 && priceChangeAbs < 2) {
+          console.log(`🚫 Filtered out potential stablecoin by price stability: ${coin.symbol.toUpperCase()} (Price: $${currentPrice}, Change: ${coin.price_change_percentage_24h}%)`);
+          return false;
+        }
+        
+        // If price is near other fiat values and has very low volatility
+        if (((currentPrice > 0.85 && currentPrice < 1.15) || 
+             (currentPrice > 6.5 && currentPrice < 7.5) ||  // CNY pegged
+             (currentPrice > 0.75 && currentPrice < 0.95)) && // EUR pegged
+            priceChangeAbs < 1.5) {
+          console.log(`🚫 Filtered out potential fiat-pegged stablecoin: ${coin.symbol.toUpperCase()} (Price: $${currentPrice}, Change: ${coin.price_change_percentage_24h}%)`);
+          return false;
+        }
+        
+        return true;
+      });
       
       // Update market cap ranks based on volume ranking
       filteredCoins.forEach((coin, index) => {
         coin.market_cap_rank = index + 1;
       });
       
-      console.log(`Filtered to ${filteredCoins.length} coins with >$10k daily volume`);
-      console.log('Top 10 by volume:', filteredCoins.slice(0, 10).map(c => 
+      console.log(`📊 MEXC API: Final filtering results:`);
+      console.log(`  📥 Initial tickers: ${tickers.length}`);
+      console.log(`  🚫 Stablecoins filtered: ${tickers.length - filteredTickers.length}`);
+      console.log(`  💰 After volume/stability filter: ${filteredCoins.length}`);
+      console.log(`  ✅ Final coins for analysis: ${filteredCoins.length}`);
+      console.log('🏆 Top 10 by volume:', filteredCoins.slice(0, 10).map(c => 
         `${c.symbol.toUpperCase()}: $${(c.total_volume / 1000000).toFixed(1)}M`
       ).join(', '));
+      
+      // Log volume distribution
+      const volumeRanges = {
+        over100M: filteredCoins.filter(c => c.total_volume > 100000000).length,
+        over10M: filteredCoins.filter(c => c.total_volume > 10000000).length,
+        over1M: filteredCoins.filter(c => c.total_volume > 1000000).length,
+        over100k: filteredCoins.filter(c => c.total_volume > 100000).length,
+        over10k: filteredCoins.filter(c => c.total_volume > 10000).length,
+        over1k: filteredCoins.filter(c => c.total_volume > 1000).length
+      };
+      
+      console.log('📈 Volume distribution:', {
+        '>$100M': volumeRanges.over100M,
+        '>$10M': volumeRanges.over10M,
+        '>$1M': volumeRanges.over1M,
+        '>$100k': volumeRanges.over100k,
+        '>$10k': volumeRanges.over10k,
+        '>$1k': volumeRanges.over1k
+      });
 
       // Cache the result
       cacheService.cacheMarketData(cacheKey, filteredCoins);

@@ -327,31 +327,91 @@ export class EnhancedDataSources {
   }
 
   private isValidForAnalysis(coin: EnhancedCoinData): boolean {
-    // Filter out invalid coins
-    if (!coin.current_price || coin.current_price <= 0) return false;
-    if (!coin.market_cap || coin.market_cap < 1000000) return false; // Min $1M market cap
-    if (!coin.total_volume || coin.total_volume <= 0) return false;
+    // Basic price validation (essential)
+    if (!coin.current_price || coin.current_price <= 0) {
+      console.log(`Filtered out ${coin.symbol}: invalid price (${coin.current_price})`);
+      return false;
+    }
     
-    // Filter out stablecoins
-    const stablecoinPatterns = [
-      'usd', 'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp',
-      'stable', 'peg', 'backed', 'reserve', 'tether', 'dollar'
+    // Volume validation (essential for trading)
+    if (!coin.total_volume || coin.total_volume <= 0) {
+      console.log(`Filtered out ${coin.symbol}: no volume (${coin.total_volume})`);
+      return false;
+    }
+    
+    // Very low minimum volume threshold to allow more coins
+    const minVolume = 5000; // Only $5k minimum volume
+    if (coin.total_volume < minVolume) {
+      console.log(`Filtered out ${coin.symbol}: volume too low ($${coin.total_volume.toLocaleString()} < $${minVolume.toLocaleString()})`);
+      return false;
+    }
+    
+    // No market cap requirements - allow all coins regardless of market cap
+    // This removes the biggest filter that was blocking coins
+    
+    // Only filter out obvious stablecoins by symbol (very specific list)
+    const knownStablecoins = [
+      'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp'
     ];
     
-    const name = coin.name.toLowerCase();
     const symbol = coin.symbol.toLowerCase();
     
-    if (stablecoinPatterns.some(pattern => name.includes(pattern) || symbol.includes(pattern))) {
+    if (knownStablecoins.includes(symbol)) {
+      console.log(`Filtered out ${coin.symbol}: known stablecoin`);
       return false;
     }
     
-    // Filter out wrapped tokens
-    const wrappedPatterns = ['wrapped', 'weth', 'wbtc', 'wbnb'];
-    if (wrappedPatterns.some(pattern => name.includes(pattern) || symbol.includes(pattern))) {
+    // Only filter out obvious wrapped tokens (very specific list)
+    const knownWrappedTokens = ['weth', 'wbtc', 'wbnb'];
+    if (knownWrappedTokens.includes(symbol)) {
+      console.log(`Filtered out ${coin.symbol}: known wrapped token`);
       return false;
     }
+    
+    // Remove all other filters - no name-based filtering, no price stability checks
+    // This should allow most coins through
     
     return true;
+  }
+
+  // New method to ensure minimum coin count with volume-based selection
+  private async ensureMinimumCoins(validCoins: EnhancedCoinData[], allCoins: EnhancedCoinData[], minCount: number = 200): Promise<EnhancedCoinData[]> {
+    if (validCoins.length >= minCount) {
+      console.log(`✅ Already have ${validCoins.length} valid coins (target: ${minCount})`);
+      return validCoins;
+    }
+    
+    console.log(`🔄 Only ${validCoins.length} valid coins, need ${minCount}. Adding more by volume...`);
+    
+    // Get coins that were filtered out
+    const validCoinIds = new Set(validCoins.map(c => c.id));
+    const filteredCoins = allCoins.filter(coin => !validCoinIds.has(coin.id));
+    
+    // Sort filtered coins by volume (highest first)
+    const sortedFiltered = filteredCoins.sort((a, b) => b.total_volume - a.total_volume);
+    
+    // Add coins with relaxed criteria until we reach minimum
+    const additionalCoins: EnhancedCoinData[] = [];
+    
+    for (const coin of sortedFiltered) {
+      if (validCoins.length + additionalCoins.length >= minCount) break;
+      
+      // Very basic validation for additional coins
+      if (coin.current_price > 0 && coin.total_volume > 1000) { // Only $1k minimum
+        const symbol = coin.symbol.toLowerCase();
+        
+        // Only exclude the most obvious stablecoins
+        if (!['usdt', 'usdc', 'busd', 'dai'].includes(symbol)) {
+          additionalCoins.push(coin);
+          console.log(`➕ Added ${coin.symbol.toUpperCase()} (volume: $${coin.total_volume.toLocaleString()})`);
+        }
+      }
+    }
+    
+    const finalCoins = [...validCoins, ...additionalCoins];
+    console.log(`🎯 Final count: ${finalCoins.length} coins (${validCoins.length} original + ${additionalCoins.length} additional)`);
+    
+    return finalCoins;
   }
 
   // Get enhanced data for a specific coin
@@ -575,29 +635,76 @@ export class EnhancedDataSources {
 
   // New MEXC-first approach for enhanced coin list
   async getEnhancedCoinListMEXCPrimary(limit: number = 1000): Promise<EnhancedCoinData[]> {
-    console.log(`Fetching enhanced coin list with MEXC as primary source (limit: ${limit})...`);
+    console.log(`🔍 EnhancedDataSources: Fetching enhanced coin list with MEXC as primary source (limit: ${limit})...`);
     
     try {
-             // Get MEXC coins as primary source
-       const mexcCoins = await apiService.getCoinsWithMEXCPrimary(limit);
+      // Get MEXC coins as primary source
+      console.log('📡 Fetching MEXC coins from API...');
+      const mexcCoins = await apiService.getCoinsWithMEXCPrimary(limit);
+      console.log(`📊 Received ${mexcCoins.length} coins from MEXC API`);
       
       if (mexcCoins.length === 0) {
-        console.warn('No MEXC coins found, falling back to regular enhanced list');
+        console.warn('⚠️ No MEXC coins found, falling back to regular enhanced list');
         return await this.getEnhancedCoinList(limit);
       }
       
+      // Log sample of received coins
+      console.log('📋 Sample of received MEXC coins:');
+      mexcCoins.slice(0, 5).forEach((coin, index) => {
+        console.log(`  ${index + 1}. ${coin.symbol.toUpperCase()}: $${coin.current_price} (MCap: $${coin.market_cap.toLocaleString()}, Vol: $${coin.total_volume.toLocaleString()}, Source: ${coin.price_source})`);
+      });
+      
       // Convert to EnhancedCoinData and add additional metrics
+      console.log('🔄 Converting to EnhancedCoinData...');
       const enhancedCoins: EnhancedCoinData[] = mexcCoins.map(coin => this.convertToEnhancedCoinData(coin));
+      console.log(`✅ Converted ${enhancedCoins.length} coins to EnhancedCoinData`);
       
-      // Filter for analysis-worthy coins
-      const validCoins = enhancedCoins.filter(coin => this.isValidForAnalysis(coin));
+      // Filter for analysis-worthy coins with detailed logging
+      console.log('🔍 Filtering coins for analysis...');
+      let filteredCount = 0;
+      let validCount = 0;
       
-      console.log(`MEXC Primary: Found ${mexcCoins.length} coins, ${validCoins.length} valid for analysis`);
-      return validCoins;
+      const validCoins = enhancedCoins.filter(coin => {
+        const isValid = this.isValidForAnalysis(coin);
+        if (isValid) {
+          validCount++;
+        } else {
+          filteredCount++;
+        }
+        return isValid;
+      });
+      
+      console.log(`📈 Initial filtering results:`);
+      console.log(`  📥 Total coins received: ${mexcCoins.length}`);
+      console.log(`  🔄 Coins converted: ${enhancedCoins.length}`);
+      console.log(`  ✅ Valid for analysis: ${validCount}`);
+      console.log(`  ❌ Filtered out: ${filteredCount}`);
+      
+      // Ensure we have at least 200 coins by adding more based on volume
+      const minCoins = 200;
+      const finalCoins = await this.ensureMinimumCoins(validCoins, enhancedCoins, minCoins);
+      
+      console.log(`📊 Final MEXC Primary Results:`);
+      console.log(`  🎯 Target minimum: ${minCoins} coins`);
+      console.log(`  📊 Final count: ${finalCoins.length} coins`);
+      
+      // Log top 10 final coins
+      if (finalCoins.length > 0) {
+        console.log('🏆 Top 10 coins for analysis (by volume):');
+        const topByVolume = finalCoins.sort((a, b) => b.total_volume - a.total_volume).slice(0, 10);
+        topByVolume.forEach((coin, index) => {
+          const mcap = coin.market_cap > 0 ? `$${(coin.market_cap / 1000000).toFixed(1)}M` : 'No MCap';
+          const vol = `$${(coin.total_volume / 1000000).toFixed(1)}M`;
+          console.log(`  ${index + 1}. ${coin.symbol.toUpperCase()}: ${mcap} MCap, ${vol} Vol (${coin.price_source})`);
+        });
+      }
+      
+      return finalCoins;
       
     } catch (error) {
-      console.error('Error in getEnhancedCoinListMEXCPrimary:', error);
+      console.error('❌ Error in getEnhancedCoinListMEXCPrimary:', error);
       // Fallback to regular enhanced list
+      console.log('🔄 Falling back to regular enhanced list...');
       return await this.getEnhancedCoinList(limit);
     }
   }

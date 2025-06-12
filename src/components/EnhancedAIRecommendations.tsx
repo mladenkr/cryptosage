@@ -105,6 +105,10 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       setError(null);
       
       console.log('EnhancedAIRecommendations: Starting enhanced analysis...');
+      
+      // Clear any cached data to force fresh analysis
+      localStorage.removeItem('enhanced_ai_cache');
+      
       const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(1000);
       
       if (analyses.length === 0) {
