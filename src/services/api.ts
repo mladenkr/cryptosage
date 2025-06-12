@@ -892,8 +892,75 @@ export const coinGeckoApi = {
       console.log(`Enhancing ${mexcCoins.length} MEXC coins with CoinGecko metadata...`);
       
       // Get a comprehensive list of CoinGecko coins for matching
-      const coinGeckoCoins = await fetchCoinsWithFallback('usd', 'market_cap_desc', 2000, 1);
-      console.log(`Fetched ${coinGeckoCoins.length} CoinGecko coins for matching`);
+      const allCoinGeckoCoins = await fetchCoinsWithFallback('usd', 'market_cap_desc', 2000, 1);
+      console.log(`Fetched ${allCoinGeckoCoins.length} CoinGecko coins for matching`);
+      
+      // Filter CoinGecko coins to remove stablecoins, wrapped, and staked tokens
+      const coinGeckoCoins = allCoinGeckoCoins.filter(coin => {
+        const symbol = coin.symbol.toLowerCase();
+        const name = coin.name.toLowerCase();
+        
+        // EXPLICIT filtering for the specific tokens mentioned by user
+        const explicitBadTokens = [
+          'bsc-usd', 'bscusd', 'weth', 'wsteth', 'bnsol', 'meth', 'steth', 'reth', 
+          'rseth', 'weeth', 'jitosol', 'lbtc', 'wbtc', 'cbbtc', 'usde', 'susds', 
+          'susde', 'usds', 'usdtb'
+        ];
+        
+        if (explicitBadTokens.includes(symbol)) {
+          console.log(`🚫 CoinGecko Enhancement: Filtered out ${symbol.toUpperCase()} - User reported token`);
+          return false;
+        }
+        
+        // Filter stablecoins
+        const stablecoins = [
+          'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 'gusd',
+          'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
+          'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
+          'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
+          'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds',
+          'usdj', 'usdn', 'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1',
+          'pyusd', 'usdm', 'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy',
+          'usdr', 'usdb', 'usdh', 'usdq', 'usdtb', 'susde', 'susds'
+        ];
+        
+        if (stablecoins.includes(symbol)) {
+          console.log(`🚫 CoinGecko Enhancement: Filtered out stablecoin ${symbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Filter wrapped and staked tokens
+        const wrappedTokens = ['weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol', 'weeth', 'cbbtc', 'lbtc'];
+        const stakedTokens = ['steth', 'reth', 'cbeth', 'sfrxeth', 'stmatic', 'stsol', 'jitosol', 'meth', 'bnsol', 'rseth', 'wsteth'];
+        
+        if (wrappedTokens.includes(symbol) || stakedTokens.includes(symbol)) {
+          console.log(`🚫 CoinGecko Enhancement: Filtered out wrapped/staked token ${symbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Filter by patterns
+        if (symbol.startsWith('w') && ['eth', 'btc', 'bnb', 'matic', 'avax', 'ftm', 'sol'].some(token => symbol.includes(token))) {
+          console.log(`🚫 CoinGecko Enhancement: Filtered out wrapped token by pattern ${symbol.toUpperCase()}`);
+          return false;
+        }
+        
+        if (symbol.includes('staked') || symbol.includes('liquid') || 
+            symbol.includes('jito') || (symbol.includes('sol') && symbol.length <= 6) ||
+            symbol.endsWith('sol') || symbol.startsWith('st') ||
+            symbol.includes('meth') || symbol.includes('seth')) {
+          console.log(`🚫 CoinGecko Enhancement: Filtered out staked token by pattern ${symbol.toUpperCase()}`);
+          return false;
+        }
+        
+        if (symbol.includes('bsc') || symbol.includes('-usd') || name.includes('bsc')) {
+          console.log(`🚫 CoinGecko Enhancement: Filtered out BSC/bridge token ${symbol.toUpperCase()}`);
+          return false;
+        }
+        
+        return true;
+      });
+      
+      console.log(`After filtering: ${coinGeckoCoins.length} CoinGecko coins available for enhancement (filtered out ${allCoinGeckoCoins.length - coinGeckoCoins.length})`);
       
       // Create multiple maps for better matching
       const coinGeckoBySymbol = new Map<string, Coin>();
@@ -1022,6 +1089,20 @@ export const coinGeckoApi = {
         }
         
         if (coinGeckoCoin) {
+          // Final safety check - make sure the matched CoinGecko coin isn't a bad token
+          const cgSymbol = coinGeckoCoin.symbol.toLowerCase();
+          const explicitBadTokens = [
+            'bsc-usd', 'bscusd', 'weth', 'wsteth', 'bnsol', 'meth', 'steth', 'reth', 
+            'rseth', 'weeth', 'jitosol', 'lbtc', 'wbtc', 'cbbtc', 'usde', 'susds', 
+            'susde', 'usds', 'usdtb'
+          ];
+          
+          if (explicitBadTokens.includes(cgSymbol)) {
+            console.log(`🚫 Final Safety Check: Blocked ${cgSymbol.toUpperCase()} from enhancement`);
+            unmatchedCount++;
+            continue;
+          }
+          
           // Successfully matched - merge MEXC real-time data with CoinGecko metadata
           const enhancedCoin: Coin = {
             // Start with CoinGecko data for all metadata (including market cap!)
