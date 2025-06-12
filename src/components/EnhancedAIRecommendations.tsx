@@ -53,7 +53,7 @@ import {
 } from '../utils/formatters';
 import { copyToClipboard, formatContractAddress } from '../utils/dexUtils';
 import { apiService } from '../services/api';
-import { Coin } from '../types';
+import { mexcApiService } from '../services/mexcApi';
 
 interface EnhancedAIRecommendationsProps {
   onCoinClick?: (coinId: string) => void;
@@ -76,6 +76,24 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   // Real-time prices state
   const [useRealTimePrices, setUseRealTimePrices] = useState(true);
   const [loadingRealTime, setLoadingRealTime] = useState(false);
+  
+  // MEXC count state
+  const [mexcUSDTCount, setMexcUSDTCount] = useState<number | null>(null);
+  const [loadingMexcCount, setLoadingMexcCount] = useState(false);
+
+  const loadMexcCount = useCallback(async () => {
+    try {
+      setLoadingMexcCount(true);
+      const count = await mexcApiService.getMEXCUSDTCount();
+      setMexcUSDTCount(count);
+      console.log(`MEXC USDT trading pairs count: ${count}`);
+    } catch (error) {
+      console.error('Failed to load MEXC count:', error);
+      setMexcUSDTCount(null);
+    } finally {
+      setLoadingMexcCount(false);
+    }
+  }, []);
 
   const loadRecommendations = useCallback(async (showLoader = false) => {
     try {
@@ -115,6 +133,9 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
 
   // Load cached data immediately, then refresh in background
   useEffect(() => {
+    // Load MEXC count
+    loadMexcCount();
+    
     // Try to load from cache first
     const cached = localStorage.getItem('enhanced_ai_cache');
     if (cached) {
@@ -138,7 +159,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     
     // No cache or cache is old, load with loader
     loadRecommendations(true);
-  }, [loadRecommendations]);
+  }, [loadRecommendations, loadMexcCount]);
 
   const handleCoinClick = (coinId: string, sourceUrl?: string) => {
     // Smart source linking - use source URL if available, otherwise fallback to CoinGecko
@@ -256,7 +277,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             Enhanced AI Analysis in Progress
           </Typography>
                             <Typography variant="body2" color="text.secondary">
-            Analyzing 1000+ cryptocurrencies from multiple data sources... (Showing top 500 results)
+            Analyzing {mexcUSDTCount ? `${mexcUSDTCount.toLocaleString()}` : '2,000+'} USDT trading pairs from MEXC Exchange... (Showing top 500 results)
           </Typography>
           <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />
         </Card>
@@ -302,6 +323,26 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
               </Typography>
             )}
           </Typography>
+          
+          {/* MEXC Trading Pairs Information */}
+          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <NetworkIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+            <Typography variant="body2" color="text.secondary">
+              Analyzing from{' '}
+              {loadingMexcCount ? (
+                <CircularProgress size={12} sx={{ mx: 0.5 }} />
+              ) : mexcUSDTCount ? (
+                <Typography component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  {mexcUSDTCount.toLocaleString()}
+                </Typography>
+              ) : (
+                <Typography component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                  2,000+
+                </Typography>
+              )}
+              {' '}USDT trading pairs available on MEXC Exchange
+            </Typography>
+          </Box>
         </Box>
         <Box sx={{ textAlign: 'right' }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'flex-end' }}>

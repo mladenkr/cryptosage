@@ -583,6 +583,39 @@ class MEXCApiService {
     // Return mapped ID or use symbol as fallback
     return symbolMappings[symbolLower] || symbolLower;
   }
+
+  // Get total count of MEXC USDT trading pairs
+  async getMEXCUSDTCount(): Promise<number> {
+    const cacheKey = 'mexc_usdt_count';
+    
+    // Check cache first (5 minute cache)
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      return cached;
+    }
+
+    try {
+      console.log('Fetching MEXC USDT trading pairs count...');
+      
+      // Get exchange info to count USDT pairs
+      const exchangeInfo = await this.makeRequest<MEXCExchangeInfo>('/exchangeInfo');
+      
+      // Count active USDT pairs
+      const usdtCount = exchangeInfo.symbols.filter(s => 
+        s.quoteAsset === 'USDT' && s.status === '1'
+      ).length;
+      
+      // Cache the result
+      cacheService.cacheMarketData(cacheKey, usdtCount);
+      
+      console.log(`Found ${usdtCount} active MEXC USDT trading pairs`);
+      return usdtCount;
+      
+    } catch (error) {
+      console.error('Failed to fetch MEXC USDT count:', error);
+      return 0;
+    }
+  }
 }
 
 // Export singleton instance
