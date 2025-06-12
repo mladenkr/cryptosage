@@ -326,14 +326,15 @@ class MEXCApiService {
 
   // Get all MEXC USDT trading pairs as primary coin list
   async getAllMEXCCoins(): Promise<Coin[]> {
-    const cacheKey = 'mexc_all_coins_primary';
+    const cacheKey = 'mexc_all_coins_primary_v2'; // Changed cache key to force refresh
     
-    // Check cache first (5 minute cache for coin list)
-    const cached = cacheService.getCachedMarketData(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
-      console.log(`Returning ${cached.length} cached MEXC coins`);
-      return cached;
-    }
+    // Temporarily disable cache to ensure fresh data with new filtering
+    console.log('🔄 Fetching fresh MEXC data (cache disabled for debugging)');
+    // const cached = cacheService.getCachedMarketData(cacheKey);
+    // if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+    //   console.log(`Returning ${cached.length} cached MEXC coins`);
+    //   return cached;
+    // }
 
     try {
       console.log('Fetching all MEXC USDT trading pairs as primary coin list...');
@@ -347,6 +348,21 @@ class MEXCApiService {
       // Filter out stablecoins first before processing
       const filteredTickers = tickers.filter(ticker => {
         const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
+        
+        // Debug: Log every symbol being processed
+        console.log(`🔍 Processing symbol: ${baseSymbol.toUpperCase()} (from ${ticker.symbol})`);
+        
+        // EXPLICIT filtering for the specific tokens mentioned by user
+        const explicitBadTokens = [
+          'bsc-usd', 'bscusd', 'weth', 'wsteth', 'bnsol', 'meth', 'steth', 'reth', 
+          'rseth', 'weeth', 'jitosol', 'lbtc', 'wbtc', 'cbbtc', 'usde', 'susds', 
+          'susde', 'usds', 'usdtb'
+        ];
+        
+        if (explicitBadTokens.includes(baseSymbol)) {
+          console.log(`🚫 EXPLICITLY FILTERED: ${baseSymbol.toUpperCase()} - User reported token`);
+          return false;
+        }
         
         // Comprehensive stablecoin list
         const stablecoins = [
@@ -417,6 +433,7 @@ class MEXCApiService {
           return false;
         }
         
+        console.log(`✅ PASSED filtering: ${baseSymbol.toUpperCase()}`);
         return true;
       });
       
