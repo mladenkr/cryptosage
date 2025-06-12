@@ -35,7 +35,7 @@ export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
 
 export class EnhancedAIAnalysis {
   private readonly BATCH_SIZE = 12; // Optimized for MEXC API rate limits
-  private readonly MAX_COINS_TO_ANALYZE = 60; // Focus on top volume coins from MEXC
+  private readonly MAX_COINS_TO_ANALYZE = 150; // Increased to get more coins after filtering
   
   // Calculate technical confidence scores
   private calculateTechnicalConfidence(analysis: CryptoAnalysis): {
@@ -408,7 +408,21 @@ export class EnhancedAIAnalysis {
         try {
           const analysis = await this.analyzeEnhancedCoin(coin);
           if (analysis) {
+            // FILTER OUT COINS WITH 0% OR VERY LOW PREDICTIONS
+            const prediction24h = Math.abs(analysis.predictions['24h']);
+            if (prediction24h < 0.1) {
+              console.log(`🚫 FILTERED OUT ${coin.symbol.toUpperCase()}: Prediction too low (${analysis.predictions['24h'].toFixed(2)}%)`);
+              continue;
+            }
+            
+            // FILTER OUT COINS WITH VERY LOW TECHNICAL SCORES
+            if (analysis.technicalScore < 30) {
+              console.log(`🚫 FILTERED OUT ${coin.symbol.toUpperCase()}: Technical score too low (${analysis.technicalScore.toFixed(1)})`);
+              continue;
+            }
+            
             analyses.push(analysis);
+            console.log(`✅ ADDED ${coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% prediction, ${analysis.technicalScore.toFixed(1)} tech score`);
           }
         } catch (error) {
           console.warn(`⚠️ Skipped ${coin.symbol} due to analysis error:`, error);
@@ -420,35 +434,49 @@ export class EnhancedAIAnalysis {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
       
-      // Break if we have enough analyses
-      if (analyses.length >= limit) break;
+      // Break if we have enough analyses (but aim for more to account for filtering)
+      if (analyses.length >= limit * 2) break;
     }
+    
+    console.log(`📊 Generated ${analyses.length} valid analyses (after filtering out low predictions)`);
     
     // Sort by technical strength and prediction confidence
     const sortedAnalyses = analyses.sort((a, b) => {
-      // Primary: Technical score (higher is better)
+      // PRIMARY: Absolute prediction magnitude (higher absolute value is better)
+      // This means -1% ranks higher than +0.9% because |-1| > |0.9|
+      const aPredictionMagnitude = Math.abs(a.predictions['24h']);
+      const bPredictionMagnitude = Math.abs(b.predictions['24h']);
+      const predDiff = bPredictionMagnitude - aPredictionMagnitude;
+      
+      // If there's a significant difference in prediction magnitude, use that
+      if (Math.abs(predDiff) > 0.1) {
+        return predDiff;
+      }
+      
+      // SECONDARY: Technical score (higher is better) - only if predictions are similar
       const techDiff = b.technicalScore - a.technicalScore;
-      if (Math.abs(techDiff) > 5) return techDiff;
+      if (Math.abs(techDiff) > 3) {
+        return techDiff;
+      }
       
-      // Secondary: Prediction magnitude
-      const predDiff = Math.abs(b.predictions['24h']) - Math.abs(a.predictions['24h']);
-      if (Math.abs(predDiff) > 0.5) return predDiff;
-      
-      // Tertiary: Multi-timeframe confidence
+      // TERTIARY: Multi-timeframe confidence
       const confDiff = b.technicalConfidence.multiTimeframe - a.technicalConfidence.multiTimeframe;
       return confDiff;
     });
 
     const topRecommendations = sortedAnalyses.slice(0, limit);
     
-    console.log(`🎯 TECHNICAL ANALYSIS: Final ${topRecommendations.length} recommendations:`);
-    topRecommendations.slice(0, 10).forEach((analysis, index) => {
+    console.log(`🎯 ENHANCED FILTERING: Final ${topRecommendations.length} recommendations (filtered from ${analyses.length} valid analyses):`);
+    console.log(`📊 RANKING BY: 1) Absolute 24h prediction magnitude, 2) Technical score, 3) Multi-timeframe confidence`);
+    topRecommendations.slice(0, 15).forEach((analysis, index) => {
       const volume = analysis.coin.total_volume;
       const source = analysis.coin.price_source || 'CoinGecko';
-      console.log(`  ${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% (Tech: ${analysis.technicalScore.toFixed(1)}, ${analysis.recommendation}, Vol: $${volume.toLocaleString()}, Source: ${source})`);
+      const predictionMagnitude = Math.abs(analysis.predictions['24h']);
+      const predictionSign = analysis.predictions['24h'] >= 0 ? '+' : '';
+      console.log(`  ${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${predictionSign}${analysis.predictions['24h'].toFixed(2)}% (|${predictionMagnitude.toFixed(2)}%|, Tech: ${analysis.technicalScore.toFixed(1)}, ${analysis.recommendation}, Vol: $${volume.toLocaleString()}, Source: ${source})`);
     });
     
-    console.log(`🚀 TECHNICAL ANALYSIS: Successfully returning ${topRecommendations.length} recommendations`);
+    console.log(`🚀 ENHANCED ANALYSIS: Successfully returning ${topRecommendations.length} high-quality recommendations`);
     
     return topRecommendations;
   }

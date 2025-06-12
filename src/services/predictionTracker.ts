@@ -18,7 +18,7 @@ export interface PredictionRecord {
     '7d': number;
   };
   confidence: number;
-  recommendation: 'LONG' | 'NEUTRAL' | 'SHORT';
+  recommendation: 'LONG' | 'SHORT';
   overallScore: number;
   
   // Actual performance data (updated hourly)

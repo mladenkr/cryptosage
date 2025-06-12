@@ -89,23 +89,21 @@ export interface MarketRegime {
 
 export interface CryptoAnalysis {
   coin: Coin;
+  indicators: TechnicalIndicators;
+  multiTimeframe: MultiTimeframeAnalysis;
+  supportResistance: SupportResistanceLevel[];
+  predicted24hChange: number;
   technicalScore: number;
   fundamentalScore: number;
   sentimentScore: number;
   overallScore: number;
-  indicators: TechnicalIndicators;
-  multiTimeframe: MultiTimeframeAnalysis;
-  supportResistance: SupportResistanceLevel[];
-  signals: string[];
-  recommendation: 'LONG' | 'NEUTRAL' | 'SHORT';
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-  priceTarget: number;
   confidence: number;
-  predicted24hChange: number;
-  // NEW ADVANCED FEATURES
+  signals: string[];
+  recommendation: 'LONG' | 'SHORT';
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+  priceTarget: number;
   patternAnalysis: PatternAnalysis;
-  marketRegime: MarketRegime;
-  volumeProfile: {
+  marketTrend: {
     trend: 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL';
     strength: number;
   };
@@ -1266,20 +1264,14 @@ export class CryptoAnalyzer {
   }
 
   // Get recommendation based on technical analysis
-  private getRecommendation(predicted24hChange: number, overallScore: number): 'LONG' | 'NEUTRAL' | 'SHORT' {
-    // Strong technical signals (more generous thresholds for crypto)
-    if (overallScore >= 65 && predicted24hChange > 0.5) return 'LONG';
-    if (overallScore <= 35 && predicted24hChange < -0.5) return 'SHORT';
-    
-    // Moderate signals (lower thresholds for crypto volatility)
-    if (predicted24hChange > 1.5) return 'LONG';
-    if (predicted24hChange < -1.5) return 'SHORT';
-    
-    // Weak but positive signals
-    if (overallScore >= 55 && predicted24hChange > 0.2) return 'LONG';
-    if (overallScore <= 45 && predicted24hChange < -0.2) return 'SHORT';
-    
-    return 'NEUTRAL';
+  private getRecommendation(predicted24hChange: number, overallScore: number): 'LONG' | 'SHORT' {
+    // Simple binary classification: positive prediction = LONG, negative = SHORT
+    // This ensures every coin gets a clear trading signal
+    if (predicted24hChange >= 0) {
+      return 'LONG';
+    } else {
+      return 'SHORT';
+    }
   }
 
   // Calculate risk level
@@ -1374,7 +1366,6 @@ export class CryptoAnalyzer {
       
       // Advanced analysis features
       const patternAnalysis = this.analyzePatterns(ohlcData, indicators);
-      const marketRegime = this.detectMarketRegime(ohlcData, indicators);
       const volumeProfile = this.analyzeVolumeProfile(ohlcData, indicators);
       
       // Calculate confidence based on signal strength and data quality
@@ -1386,23 +1377,21 @@ export class CryptoAnalyzer {
 
       return {
         coin,
+        indicators,
+        multiTimeframe,
+        supportResistance,
+        predicted24hChange,
         technicalScore,
         fundamentalScore,
         sentimentScore,
         overallScore,
-        indicators,
-        multiTimeframe,
-        supportResistance,
+        confidence,
         signals,
         recommendation,
         riskLevel,
         priceTarget,
-        confidence,
-        predicted24hChange,
-        // NEW ADVANCED FEATURES
         patternAnalysis,
-        marketRegime,
-        volumeProfile
+        marketTrend: volumeProfile
       };
       
     } catch (error: any) {
@@ -1463,22 +1452,34 @@ export class CryptoAnalyzer {
       
       // Sort by technical strength and prediction magnitude
       const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary: Technical score (higher is better)
+        // PRIMARY: Absolute prediction magnitude (higher absolute value is better)
+        // This means -1% ranks higher than +0.9% because |-1| > |0.9|
+        const aPredictionMagnitude = Math.abs(a.predicted24hChange);
+        const bPredictionMagnitude = Math.abs(b.predicted24hChange);
+        const predDiff = bPredictionMagnitude - aPredictionMagnitude;
+        
+        // If there's a significant difference in prediction magnitude, use that
+        if (Math.abs(predDiff) > 0.1) {
+          return predDiff;
+        }
+        
+        // SECONDARY: Technical score (higher is better) - only if predictions are similar
         const techDiff = b.technicalScore - a.technicalScore;
-        if (Math.abs(techDiff) > 5) return techDiff;
+        if (Math.abs(techDiff) > 3) {
+          return techDiff;
+        }
         
-        // Secondary: Prediction magnitude
-        const predDiff = Math.abs(b.predicted24hChange) - Math.abs(a.predicted24hChange);
-        if (Math.abs(predDiff) > 0.5) return predDiff;
-        
-        // Tertiary: Overall score
+        // TERTIARY: Overall score
         return b.overallScore - a.overallScore;
       });
       
       console.log(`Generated ${sortedAnalyses.length} technical analyses`);
-      console.log('Top 5 recommendations:', sortedAnalyses.slice(0, 5).map(a => 
-        `${a.coin.symbol}: ${a.predicted24hChange.toFixed(2)}% (Tech: ${a.technicalScore.toFixed(1)}, ${a.recommendation})`
-      ));
+      console.log(`📊 RANKING BY: 1) Absolute 24h prediction magnitude, 2) Technical score, 3) Overall score`);
+      console.log('Top 5 recommendations:', sortedAnalyses.slice(0, 5).map(a => {
+        const predictionMagnitude = Math.abs(a.predicted24hChange);
+        const predictionSign = a.predicted24hChange >= 0 ? '+' : '';
+        return `${a.coin.symbol}: ${predictionSign}${a.predicted24hChange.toFixed(2)}% (|${predictionMagnitude.toFixed(2)}%|, Tech: ${a.technicalScore.toFixed(1)}, ${a.recommendation})`;
+      }));
       
       return sortedAnalyses.slice(0, 10);
       

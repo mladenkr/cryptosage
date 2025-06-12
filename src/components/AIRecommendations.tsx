@@ -60,27 +60,7 @@ interface AILogicDialogProps {
 const AILogicDialog: React.FC<AILogicDialogProps> = ({ open, onClose, analysis }) => {
   const { theme, mode } = useTheme();
 
-  const getSignalIcon = (signal: string) => {
-    if (signal.includes('Bullish') || signal.includes('Golden Cross') || signal.includes('Oversold')) {
-      return <CheckCircleIcon sx={{ color: '#00A532', fontSize: '1.2rem' }} />;
-    } else if (signal.includes('Overbought') || signal.includes('Bearish')) {
-      return <ErrorIcon sx={{ color: '#F44336', fontSize: '1.2rem' }} />;
-    } else {
-      return <WarningIcon sx={{ color: '#FF9800', fontSize: '1.2rem' }} />;
-    }
-  };
 
-  const getSignalExplanation = (signal: string) => {
-    const explanations: { [key: string]: string } = {
-      'RSI Oversold': 'RSI below 30 indicates the asset may be oversold and due for a price bounce.',
-      'RSI Overbought': 'RSI above 70 suggests the asset may be overbought and due for a correction.',
-      'MACD Bullish': 'MACD line above signal line indicates bullish momentum and potential upward price movement.',
-      'Above SMA20': 'Price trading above 20-day Simple Moving Average shows short-term bullish trend.',
-      'Golden Cross': 'Short-term moving average crossing above long-term MA is a strong bullish signal.',
-      'Bollinger Oversold': 'Price near lower Bollinger Band suggests oversold conditions and potential reversal.',
-    };
-    return explanations[signal] || 'Technical indicator providing market insight.';
-  };
 
   const getRecommendationExplanation = (recommendation: string, predicted24hChange: number) => {
     switch (recommendation) {
@@ -88,8 +68,6 @@ const AILogicDialog: React.FC<AILogicDialogProps> = ({ open, onClose, analysis }
         return `AI predicts a ${predicted24hChange.toFixed(1)}% price increase in the next 24 hours based on bullish technical indicators and positive market momentum.`;
       case 'SHORT':
         return `AI predicts a ${Math.abs(predicted24hChange).toFixed(1)}% price decrease in the next 24 hours based on bearish technical indicators and negative market momentum.`;
-      case 'NEUTRAL':
-        return `AI predicts minimal price movement (${predicted24hChange.toFixed(1)}%) in the next 24 hours due to mixed or neutral technical signals.`;
       default:
         return 'AI analysis based on technical indicators and market data.';
     }
@@ -255,32 +233,14 @@ const AILogicDialog: React.FC<AILogicDialogProps> = ({ open, onClose, analysis }
           </Grid>
         </Grid>
 
-        {/* Trading Signals */}
+        {/* Technical Signals */}
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-          Active Trading Signals
+          Technical Analysis Summary
         </Typography>
         
-        {analysis.signals.length > 0 ? (
-          <List sx={{ bgcolor: mode === 'light' ? '#F7F2FA' : '#2A2A2A', borderRadius: 2, mb: 2 }}>
-            {analysis.signals.map((signal, index) => (
-              <ListItem key={index} sx={{ py: 1 }}>
-                <ListItemIcon sx={{ minWidth: 36 }}>
-                  {getSignalIcon(signal)}
-                </ListItemIcon>
-                <ListItemText
-                  primary={signal}
-                  secondary={getSignalExplanation(signal)}
-                  primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
-                  secondaryTypographyProps={{ fontSize: '0.8rem' }}
-                />
-              </ListItem>
-            ))}
-          </List>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            No specific trading signals detected at this time.
-          </Typography>
-        )}
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {getRecommendationExplanation(analysis.recommendation, analysis.predicted24hChange)}
+        </Typography>
 
         {/* Risk Assessment */}
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
@@ -467,8 +427,6 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
     switch (recommendation) {
       case 'LONG':
         return '#00A532'; // Green for bullish prediction
-      case 'NEUTRAL':
-        return '#FF9800'; // Orange for neutral prediction
       case 'SHORT':
         return '#F44336'; // Red for bearish prediction
       default:

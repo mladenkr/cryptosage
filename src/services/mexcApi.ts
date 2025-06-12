@@ -192,34 +192,82 @@ class MEXCApiService {
 
   // Get 24hr ticker statistics for all symbols
   async getAll24hrTickers(): Promise<MEXCTicker24hr[]> {
-    // const cacheKey = 'mexc_24hr_tickers'; // Disabled for debugging
+    const cacheKey = 'mexc_24hr_tickers_v2';
     
-    // Disable cache for debugging
-    console.log('🔄 Fetching fresh 24hr tickers (cache disabled)');
-    // const cached = cacheService.getCachedMarketData(cacheKey);
-    // if (cached && Date.now() - cached.timestamp < MEXC_CACHE_DURATION) {
-    //   return cached;
-    // }
+    // Use 30 second cache for real-time data
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached && Date.now() - cached.timestamp < MEXC_CACHE_DURATION) {
+      console.log(`📦 Using cached 24hr tickers: ${cached.length} tickers (${Math.round((Date.now() - cached.timestamp) / 1000)}s old)`);
+      return cached;
+    }
 
     try {
       console.log('📡 Making MEXC API request to /ticker/24hr...');
       const tickers = await this.makeRequest<MEXCTicker24hr[]>('/ticker/24hr');
       console.log(`📊 Raw API response: ${tickers.length} total tickers`);
       
-      // Filter for USDT pairs only
-      const usdtTickers = tickers.filter(t => t.symbol.endsWith('USDT'));
-      console.log(`💰 Filtered to ${usdtTickers.length} USDT pairs`);
+      // Filter out stablecoins first before processing
+      const filteredTickers = tickers.filter(ticker => {
+        const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
+        
+        // EXPLICIT filtering for the specific tokens mentioned by user
+        const explicitBadTokens = [
+          'bsc-usd', 'bscusd', 'weth', 'wsteth', 'bnsol', 'meth', 'steth', 'reth', 
+          'rseth', 'weeth', 'jitosol', 'lbtc', 'wbtc', 'cbbtc', 'usde', 'susds', 
+          'susde', 'usds', 'usdtb'
+        ];
+        
+        if (explicitBadTokens.includes(baseSymbol)) {
+          console.log(`🚫 EXPLICITLY FILTERED: ${baseSymbol.toUpperCase()} - User reported token`);
+          return false;
+        }
+        
+        // SIMPLIFIED stablecoin list - only the most obvious ones
+        const stablecoins = [
+          // Only the most obvious stablecoins
+          'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 
+          'fdusd', 'pyusd', 'usdm', 'gho', 'crvusd', 'mkusd', 'usds', 'usdtb'
+        ];
+        
+        // Check if it's a stablecoin
+        if (stablecoins.includes(baseSymbol)) {
+          console.log(`🚫 Filtered out stablecoin: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // SIMPLIFIED wrapped/staked token filtering - only the most obvious ones
+        const wrappedTokens = ['weth', 'wbtc', 'wbnb', 'weeth', 'cbbtc', 'lbtc'];
+        const stakedTokens = ['steth', 'reth', 'cbeth', 'jitosol', 'meth', 'bnsol', 'rseth', 'wsteth'];
+        
+        if (wrappedTokens.includes(baseSymbol) || stakedTokens.includes(baseSymbol)) {
+          console.log(`🚫 Filtered out wrapped/staked token: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Filter BSC-related tokens
+        if (baseSymbol.includes('bsc') || baseSymbol.includes('-usd')) {
+          console.log(`🚫 Filtered out BSC/bridge token: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // REMOVED: Overly aggressive pattern matching that was filtering too many coins
+        
+        return true;
+      });
       
-      if (usdtTickers.length === 0) {
-        console.error('❌ No USDT pairs found in MEXC API response');
-        throw new Error('No USDT trading pairs found in MEXC API response');
+      console.log(`🔍 Filtered out ${tickers.length - filteredTickers.length} stablecoins from ${tickers.length} total tickers`);
+      console.log(`📊 Processing ${filteredTickers.length} valid trading pairs`);
+      
+      if (filteredTickers.length === 0) {
+        console.error('❌ No valid trading pairs after filtering - all were stablecoins/wrapped tokens');
+        throw new Error('No valid trading pairs found after filtering stablecoins and wrapped tokens');
       }
       
-      // Cache the result using market data cache (disabled for debugging)
-      // cacheService.cacheMarketData(cacheKey, usdtTickers);
+      // Cache the result using market data cache
+      cacheService.cacheMarketData(cacheKey, filteredTickers);
       
-      console.log(`✅ Successfully fetched ${usdtTickers.length} MEXC 24hr tickers`);
-      return usdtTickers;
+      console.log(`✅ Successfully fetched ${filteredTickers.length} MEXC 24hr tickers`);
+      return filteredTickers;
     } catch (error) {
       console.error('❌ CRITICAL: Failed to fetch MEXC 24hr tickers:', error);
       console.error('Error details:', {
@@ -347,19 +395,14 @@ class MEXCApiService {
 
   // Get all MEXC USDT trading pairs as primary coin list
   async getAllMEXCCoins(): Promise<Coin[]> {
-    // const cacheKey = 'mexc_all_coins_primary_v3'; // Disabled for debugging
+    const cacheKey = 'mexc_all_coins_primary_v4';
     
-    // Clear all existing cache to force fresh data
-    console.log('🧹 Clearing all MEXC cache to force fresh data...');
-    cacheService.clearCache();
-    
-    // Completely disable cache for now
-    console.log('🔄 Fetching completely fresh MEXC data (cache fully disabled)');
-    // const cached = cacheService.getCachedMarketData(cacheKey);
-    // if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
-    //   console.log(`Returning ${cached.length} cached MEXC coins`);
-    //   return cached;
-    // }
+    // Use shorter cache duration for more real-time data (2 minutes)
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 2 * 60 * 1000) {
+      console.log(`📦 Using cached MEXC coins: ${cached.length} coins (${Math.round((Date.now() - cached.timestamp) / 1000)}s old)`);
+      return cached;
+    }
 
     try {
       console.log('🚀 MEXC API: Starting getAllMEXCCoins...');
@@ -380,12 +423,14 @@ class MEXCApiService {
         throw new Error('MEXC API returned no trading data. Please check API connectivity.');
       }
       
-      // Filter out stablecoins first before processing
+      // Filter for USDT pairs and remove stablecoins/wrapped tokens
       const filteredTickers = tickers.filter(ticker => {
-        const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
+        // Only USDT pairs
+        if (!ticker.symbol.endsWith('USDT')) {
+          return false;
+        }
         
-        // Debug: Log every symbol being processed
-        console.log(`🔍 Processing symbol: ${baseSymbol.toUpperCase()} (from ${ticker.symbol})`);
+        const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
         
         // EXPLICIT filtering for the specific tokens mentioned by user
         const explicitBadTokens = [
@@ -395,80 +440,33 @@ class MEXCApiService {
         ];
         
         if (explicitBadTokens.includes(baseSymbol)) {
-          console.log(`🚫 EXPLICITLY FILTERED: ${baseSymbol.toUpperCase()} - User reported token`);
           return false;
         }
         
-        // Comprehensive stablecoin list
+        // SIMPLIFIED stablecoin list - only the most obvious ones
         const stablecoins = [
-          // Traditional stablecoins
-          'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 'gusd',
-          'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
-          'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
-          'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
-          'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds',
-          'usdj', 'usdn', 'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1',
-          'pyusd', 'usdm', 'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy',
-          'usdr', 'usdb', 'usdh', 'usdq', 'usdtb', 'susde', 'susds',
-          // BSC and other chain stablecoins
-          'bsc-usd', 'bscusd', 'busd'
+          'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 
+          'fdusd', 'pyusd', 'usdm', 'gho', 'crvusd', 'mkusd', 'usds', 'usdtb'
         ];
         
         // Check if it's a stablecoin
         if (stablecoins.includes(baseSymbol)) {
-          console.log(`🚫 Filtered out stablecoin: ${baseSymbol.toUpperCase()}`);
           return false;
         }
         
-        // Also filter by name patterns for additional stablecoin detection
-        const stablecoinPatterns = ['usd', 'dollar', 'stable', 'peg'];
-        if (stablecoinPatterns.some(pattern => baseSymbol.includes(pattern))) {
-          console.log(`🚫 Filtered out potential stablecoin by pattern: ${baseSymbol.toUpperCase()}`);
-          return false;
-        }
-        
-        // Filter stablecoins with numeric suffixes (USD1, USDT0, etc.)
-        if (/^usd[tc]?\d+$/i.test(baseSymbol) || /^[a-z]*usd[a-z]*\d*$/i.test(baseSymbol)) {
-          console.log(`🚫 Filtered out numeric stablecoin variant: ${baseSymbol.toUpperCase()}`);
-          return false;
-        }
-        
-        // Filter out wrapped tokens and staked tokens
-        const wrappedTokens = [
-          'weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol', 'weeth', 'cbbtc', 'lbtc'
-        ];
-        const stakedTokens = [
-          'steth', 'reth', 'cbeth', 'sfrxeth', 'stmatic', 'stsol', 'jitosol', 'meth', 
-          'bnsol', 'rseth', 'wsteth'
-        ];
+        // SIMPLIFIED wrapped/staked token filtering - only the most obvious ones
+        const wrappedTokens = ['weth', 'wbtc', 'wbnb', 'weeth', 'cbbtc', 'lbtc'];
+        const stakedTokens = ['steth', 'reth', 'cbeth', 'jitosol', 'meth', 'bnsol', 'rseth', 'wsteth'];
         
         if (wrappedTokens.includes(baseSymbol) || stakedTokens.includes(baseSymbol)) {
-          console.log(`🚫 Filtered out wrapped/staked token: ${baseSymbol.toUpperCase()}`);
-          return false;
-        }
-        
-        // Filter by wrapped/staked patterns
-        if (baseSymbol.startsWith('w') && ['eth', 'btc', 'bnb', 'matic', 'avax', 'ftm', 'sol'].some(token => baseSymbol.includes(token))) {
-          console.log(`🚫 Filtered out wrapped token by pattern: ${baseSymbol.toUpperCase()}`);
-          return false;
-        }
-        
-        // Enhanced staked token patterns
-        if (baseSymbol.includes('staked') || baseSymbol.includes('liquid') || 
-            baseSymbol.includes('jito') || (baseSymbol.includes('sol') && baseSymbol.length <= 6) ||
-            baseSymbol.endsWith('sol') || baseSymbol.startsWith('st') ||
-            baseSymbol.includes('meth') || baseSymbol.includes('seth')) {
-          console.log(`🚫 Filtered out staked token by pattern: ${baseSymbol.toUpperCase()}`);
           return false;
         }
         
         // Filter BSC-related tokens
         if (baseSymbol.includes('bsc') || baseSymbol.includes('-usd')) {
-          console.log(`🚫 Filtered out BSC/bridge token: ${baseSymbol.toUpperCase()}`);
           return false;
         }
         
-        console.log(`✅ PASSED filtering: ${baseSymbol.toUpperCase()}`);
         return true;
       });
       
@@ -596,8 +594,8 @@ class MEXCApiService {
         throw new Error('No valid coins found after applying volume and stability filters');
       }
       
-      // Cache the results (disabled for debugging)
-      // cacheService.cacheMarketData(cacheKey, filteredCoins);
+      // Cache the results for 2 minutes
+      cacheService.cacheMarketData(cacheKey, filteredCoins);
       
       console.log(`✅ MEXC API SUCCESS: Returning ${filteredCoins.length} valid coins`);
       return filteredCoins;

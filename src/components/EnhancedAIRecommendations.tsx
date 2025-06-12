@@ -41,7 +41,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   ContentCopy as ContentCopyIcon,
   ShoppingCart as ShoppingCartIcon,
-  AccountTree as NetworkIcon,
 } from '@mui/icons-material';
 import { EnhancedCryptoAnalysis } from '../services/enhancedAIAnalysis';
 import { enhancedAIAnalysis } from '../services/enhancedAIAnalysis';
@@ -74,7 +73,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [signalFilter, setSignalFilter] = useState<'ALL' | 'LONG' | 'SHORT' | 'NEUTRAL'>('ALL');
+  const [signalFilter, setSignalFilter] = useState<'ALL' | 'LONG' | 'SHORT'>('ALL');
   
   // Real-time prices state
   const [useRealTimePrices, setUseRealTimePrices] = useState(true);
@@ -151,9 +150,9 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       //   timestamp: Date.now()
       // }));
       
-    } catch (err: any) {
-      console.error('EnhancedAIRecommendations: Error loading recommendations:', err);
-      setError(err.message || 'Failed to load enhanced recommendations');
+    } catch (error) {
+      console.error('EnhancedAIRecommendations: Error loading recommendations:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load recommendations');
     } finally {
       setLoading(false);
       setBackgroundLoading(false);
@@ -197,7 +196,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     setSnackbarOpen(false);
   };
 
-  const handleSignalFilterChange = (filter: 'ALL' | 'LONG' | 'SHORT' | 'NEUTRAL') => {
+  const handleSignalFilterChange = (filter: 'ALL' | 'LONG' | 'SHORT') => {
     setSignalFilter(filter);
   };
 
@@ -336,7 +335,6 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
           
           {/* MEXC Trading Pairs Information */}
           <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <NetworkIcon sx={{ fontSize: 16, color: 'primary.main' }} />
             <Typography variant="body2" color="text.secondary">
               Analyzing from{' '}
               {loadingMexcCount ? (
@@ -463,7 +461,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
 
       {/* Statistics - Now Clickable Filters */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={3}>
+        <Grid item xs={12} sm={4}>
           <Card 
             sx={{ 
               p: 2, 
@@ -492,7 +490,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             )}
           </Card>
         </Grid>
-        <Grid item xs={12} sm={3}>
+        <Grid item xs={12} sm={4}>
           <Card 
             sx={{ 
               p: 2, 
@@ -521,7 +519,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             )}
           </Card>
         </Grid>
-        <Grid item xs={12} sm={3}>
+        <Grid item xs={12} sm={4}>
           <Card 
             sx={{ 
               p: 2, 
@@ -545,35 +543,6 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             </Typography>
             {signalFilter === 'SHORT' && (
               <Typography variant="caption" color="error.main" sx={{ fontWeight: 600 }}>
-                ACTIVE
-              </Typography>
-            )}
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={3}>
-          <Card 
-            sx={{ 
-              p: 2, 
-              textAlign: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              border: signalFilter === 'NEUTRAL' ? `2px solid ${theme.palette.warning.main}` : 'none',
-              backgroundColor: signalFilter === 'NEUTRAL' ? `${theme.palette.warning.main}10` : 'inherit',
-              '&:hover': {
-                transform: 'translateY(-1px)',
-                boxShadow: 2,
-              }
-            }}
-            onClick={() => handleSignalFilterChange('NEUTRAL')}
-          >
-            <Typography variant="h6" color="warning.main">
-              {recommendations.filter(r => r.recommendation === 'NEUTRAL').length}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Neutral Signals
-            </Typography>
-            {signalFilter === 'NEUTRAL' && (
-              <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600 }}>
                 ACTIVE
               </Typography>
             )}
@@ -701,16 +670,6 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                         ? `$${(analysis.coin.market_cap / 1000000).toFixed(1)}M` 
                         : `$${(analysis.coin.market_cap / 1000).toFixed(0)}K`}
                     </Typography>
-                    
-                    {/* Network Information */}
-                    {analysis.coin.network && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                        <NetworkIcon sx={{ fontSize: '0.7rem', mr: 0.5, color: 'text.secondary' }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                          {analysis.coin.network}
-                        </Typography>
-                      </Box>
-                    )}
                     
                     {/* Contract Address */}
                     {analysis.coin.contract_address && (
@@ -1202,20 +1161,21 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   </Grid>
                 </Grid>
 
-                {/* Trading Signals */}
+                {/* Prediction Summary */}
                 <Grid item xs={12}>
                   <Typography variant="h6" gutterBottom>
-                    Trading Signals
+                    Prediction Summary
                   </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {selectedAnalysis.signals.map((signal, index) => (
-                      <Chip
-                        key={index}
-                        label={signal}
-                        variant="outlined"
-                        size="small"
-                      />
-                    ))}
+                  <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                    <Typography variant="body1" sx={{ mb: 1 }}>
+                      <strong>24h Prediction:</strong> {selectedAnalysis.predictions['24h'] > 0 ? '+' : ''}{selectedAnalysis.predictions['24h'].toFixed(2)}%
+                    </Typography>
+                    <Typography variant="body1" sx={{ mb: 1 }}>
+                      <strong>Recommendation:</strong> {selectedAnalysis.recommendation}
+                    </Typography>
+                    <Typography variant="body1">
+                      <strong>Confidence:</strong> {selectedAnalysis.confidence.toFixed(0)}%
+                    </Typography>
                   </Box>
                 </Grid>
               </Grid>

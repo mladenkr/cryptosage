@@ -547,35 +547,54 @@ export class EnhancedDataSources {
     const symbol = coin.symbol?.toLowerCase();
     const id = coin.id?.toLowerCase();
     
-    // Native tokens
-    if (symbol === 'eth' || id === 'ethereum') return 'Ethereum';
-    if (symbol === 'bnb' || id === 'binancecoin') return 'BNB Chain';
-    if (symbol === 'matic' || id === 'matic-network') return 'Polygon';
-    if (symbol === 'avax' || id === 'avalanche-2') return 'Avalanche';
-    if (symbol === 'sol' || id === 'solana') return 'Solana';
-    if (symbol === 'ada' || id === 'cardano') return 'Cardano';
-    if (symbol === 'dot' || id === 'polkadot') return 'Polkadot';
-    if (symbol === 'atom' || id === 'cosmos') return 'Cosmos';
-    if (symbol === 'near' || id === 'near') return 'NEAR Protocol';
-    if (symbol === 'ftm' || id === 'fantom') return 'Fantom';
-    if (symbol === 'one' || id === 'harmony') return 'Harmony';
-    if (symbol === 'cro' || id === 'crypto-com-chain') return 'Cronos';
+    // DEBUG: Log what we're checking for Bitcoin
+    if (symbol === 'btc' || id === 'bitcoin') {
+      console.log(`🔍 DEBUG: Checking network for Bitcoin:`, {
+        symbol,
+        id,
+        platforms: coin.platforms,
+        contract_address: coin.contract_address
+      });
+    }
     
-    // ERC-20 tokens (most common)
-    if (coin.platforms?.ethereum || coin.contract_address) return 'Ethereum';
+    // Native blockchain tokens (these have their own networks, not deployed on others)
+    if (symbol === 'btc' || id === 'bitcoin') return undefined; // Bitcoin is its own network
+    if (symbol === 'eth' || id === 'ethereum') return undefined; // Ethereum is its own network
+    if (symbol === 'bnb' || id === 'binancecoin') return undefined; // BNB is native to BNB Chain
+    if (symbol === 'matic' || id === 'matic-network') return undefined; // MATIC is native to Polygon
+    if (symbol === 'avax' || id === 'avalanche-2') return undefined; // AVAX is native to Avalanche
+    if (symbol === 'sol' || id === 'solana') return undefined; // SOL is native to Solana
+    if (symbol === 'ada' || id === 'cardano') return undefined; // ADA is native to Cardano
+    if (symbol === 'dot' || id === 'polkadot') return undefined; // DOT is native to Polkadot
+    if (symbol === 'atom' || id === 'cosmos') return undefined; // ATOM is native to Cosmos
+    if (symbol === 'near' || id === 'near') return undefined; // NEAR is native to NEAR Protocol
+    if (symbol === 'ftm' || id === 'fantom') return undefined; // FTM is native to Fantom
+    if (symbol === 'one' || id === 'harmony') return undefined; // ONE is native to Harmony
+    if (symbol === 'cro' || id === 'crypto-com-chain') return undefined; // CRO is native to Cronos
+    if (symbol === 'ltc' || id === 'litecoin') return undefined; // LTC is its own network
+    if (symbol === 'bch' || id === 'bitcoin-cash') return undefined; // BCH is its own network
+    if (symbol === 'xrp' || id === 'ripple') return undefined; // XRP is its own network
+    if (symbol === 'xlm' || id === 'stellar') return undefined; // XLM is its own network
+    if (symbol === 'algo' || id === 'algorand') return undefined; // ALGO is its own network
+    if (symbol === 'trx' || id === 'tron') return undefined; // TRX is its own network
     
-    // BSC tokens
+    // Only show network for tokens that are actually deployed on other networks
+    // Check platform-specific deployments first (most reliable)
+    if (coin.platforms?.ethereum) return 'Ethereum';
     if (coin.platforms?.['binance-smart-chain']) return 'BNB Chain';
-    
-    // Polygon tokens
     if (coin.platforms?.['polygon-pos']) return 'Polygon';
-    
-    // Other networks
     if (coin.platforms?.avalanche) return 'Avalanche';
     if (coin.platforms?.solana) return 'Solana';
     if (coin.platforms?.fantom) return 'Fantom';
     if (coin.platforms?.arbitrum) return 'Arbitrum';
     if (coin.platforms?.optimism) return 'Optimism';
+    
+    // Only if we have explicit contract address information and it's not a native token
+    if (coin.contract_address && !this.isNativeToken(symbol, id)) {
+      // Try to determine network from contract address format or other indicators
+      // For now, we'll be conservative and not assume Ethereum
+      return undefined;
+    }
     
     return undefined;
   }
@@ -600,46 +619,58 @@ export class EnhancedDataSources {
       'btc', 'eth', 'bnb', 'matic', 'avax', 'sol', 'ada', 'dot', 
       'atom', 'near', 'ftm', 'one', 'cro', 'ltc', 'bch', 'xrp',
       'xlm', 'algo', 'egld', 'hbar', 'icp', 'vet', 'theta',
-      'fil', 'trx', 'eos', 'xtz', 'neo', 'waves', 'zil'
+      'fil', 'trx', 'eos', 'xtz', 'neo', 'waves', 'zil', 'kda',
+      'flow', 'rose', 'celo', 'luna', 'osmo', 'juno', 'scrt',
+      'kava', 'band', 'rune', 'thor', 'ksm', 'movr', 'glmr'
     ];
     
-    return nativeTokens.includes(symbol?.toLowerCase()) || 
-           nativeTokens.includes(id?.toLowerCase());
+    const symbolLower = symbol?.toLowerCase();
+    const idLower = id?.toLowerCase();
+    
+    return nativeTokens.includes(symbolLower) || 
+           nativeTokens.includes(idLower) ||
+           // Additional ID-based checks for common variations
+           idLower === 'bitcoin' || idLower === 'ethereum' || 
+           idLower === 'binancecoin' || idLower === 'matic-network' ||
+           idLower === 'avalanche-2' || idLower === 'solana' ||
+           idLower === 'cardano' || idLower === 'polkadot' ||
+           idLower === 'cosmos' || idLower === 'near' ||
+           idLower === 'fantom' || idLower === 'harmony' ||
+           idLower === 'crypto-com-chain' || idLower === 'litecoin' ||
+           idLower === 'bitcoin-cash' || idLower === 'ripple' ||
+           idLower === 'stellar' || idLower === 'algorand' ||
+           idLower === 'tron';
   }
 
   private detectNetworkFromSymbol(symbol: string, id: string): string | undefined {
     // Common network detection based on coin data
-    
-    // Native tokens
-    if (symbol === 'eth' || id === 'ethereum') return 'Ethereum';
-    if (symbol === 'bnb' || id === 'binancecoin') return 'BNB Chain';
-    if (symbol === 'matic' || id === 'matic-network') return 'Polygon';
-    if (symbol === 'avax' || id === 'avalanche-2') return 'Avalanche';
-    if (symbol === 'sol' || id === 'solana') return 'Solana';
-    if (symbol === 'ada' || id === 'cardano') return 'Cardano';
-    if (symbol === 'dot' || id === 'polkadot') return 'Polkadot';
-    if (symbol === 'atom' || id === 'cosmos') return 'Cosmos';
-    if (symbol === 'near' || id === 'near') return 'NEAR Protocol';
-    if (symbol === 'ftm' || id === 'fantom') return 'Fantom';
-    if (symbol === 'one' || id === 'harmony') return 'Harmony';
-    if (symbol === 'cro' || id === 'crypto-com-chain') return 'Cronos';
-    
-    // ERC-20 tokens (most common)
     const symbolLower = symbol?.toLowerCase();
-    if (symbolLower.includes('ethereum') || symbolLower.includes('matic') || symbolLower.includes('polygon')) return 'Ethereum';
+    const idLower = id?.toLowerCase();
     
-    // BSC tokens
-    if (symbolLower.includes('binance') || symbolLower.includes('bnb')) return 'BNB Chain';
+    // Native blockchain tokens (these have their own networks, not deployed on others)
+    if (symbolLower === 'btc' || idLower === 'bitcoin') return undefined; // Bitcoin is its own network
+    if (symbolLower === 'eth' || idLower === 'ethereum') return undefined; // Ethereum is its own network
+    if (symbolLower === 'bnb' || idLower === 'binancecoin') return undefined; // BNB is native to BNB Chain
+    if (symbolLower === 'matic' || idLower === 'matic-network') return undefined; // MATIC is native to Polygon
+    if (symbolLower === 'avax' || idLower === 'avalanche-2') return undefined; // AVAX is native to Avalanche
+    if (symbolLower === 'sol' || idLower === 'solana') return undefined; // SOL is native to Solana
+    if (symbolLower === 'ada' || idLower === 'cardano') return undefined; // ADA is native to Cardano
+    if (symbolLower === 'dot' || idLower === 'polkadot') return undefined; // DOT is native to Polkadot
+    if (symbolLower === 'atom' || idLower === 'cosmos') return undefined; // ATOM is native to Cosmos
+    if (symbolLower === 'near' || idLower === 'near') return undefined; // NEAR is native to NEAR Protocol
+    if (symbolLower === 'ftm' || idLower === 'fantom') return undefined; // FTM is native to Fantom
+    if (symbolLower === 'one' || idLower === 'harmony') return undefined; // ONE is native to Harmony
+    if (symbolLower === 'cro' || idLower === 'crypto-com-chain') return undefined; // CRO is native to Cronos
+    if (symbolLower === 'ltc' || idLower === 'litecoin') return undefined; // LTC is its own network
+    if (symbolLower === 'bch' || idLower === 'bitcoin-cash') return undefined; // BCH is its own network
+    if (symbolLower === 'xrp' || idLower === 'ripple') return undefined; // XRP is its own network
+    if (symbolLower === 'xlm' || idLower === 'stellar') return undefined; // XLM is its own network
+    if (symbolLower === 'algo' || idLower === 'algorand') return undefined; // ALGO is its own network
+    if (symbolLower === 'trx' || idLower === 'tron') return undefined; // TRX is its own network
     
-    // Polygon tokens
-    if (symbolLower.includes('matic') || symbolLower.includes('polygon')) return 'Polygon';
-    
-    // Other networks
-    if (symbolLower.includes('avalanche') || symbolLower.includes('avax')) return 'Avalanche';
-    if (symbolLower.includes('solana')) return 'Solana';
-    if (symbolLower.includes('fantom')) return 'Fantom';
-    if (symbolLower.includes('arbitrum')) return 'Arbitrum';
-    if (symbolLower.includes('optimism')) return 'Optimism';
+    // For tokens deployed on other networks, we need more specific indicators
+    // Without platform data, we can't reliably determine the network
+    // So we'll be conservative and return undefined
     
     return undefined;
   }
