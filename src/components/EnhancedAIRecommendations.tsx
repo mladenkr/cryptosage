@@ -109,7 +109,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       // Clear any cached data to force fresh analysis
       localStorage.removeItem('enhanced_ai_cache');
       
-      const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(1000);
+      const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(100);
       
       if (analyses.length === 0) {
         setError('No enhanced recommendations available at this time. Please try again later.');
@@ -281,7 +281,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             Enhanced AI Analysis in Progress
           </Typography>
                             <Typography variant="body2" color="text.secondary">
-            Analyzing {mexcUSDTCount ? `${mexcUSDTCount.toLocaleString()}` : '2,000+'} USDT trading pairs from MEXC Exchange... (Showing top 1,000 results)
+            Analyzing {mexcUSDTCount ? `${mexcUSDTCount.toLocaleString()}` : '2,000+'} USDT trading pairs from MEXC Exchange... (Showing top 100 results)
           </Typography>
           <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />
         </Card>

@@ -394,12 +394,12 @@ export class EnhancedAIAnalysis {
   }
   
   // Get enhanced recommendations for many coins
-  async getEnhancedRecommendations(limit: number = 50): Promise<EnhancedCryptoAnalysis[]> {
+  async getEnhancedRecommendations(limit: number = 100): Promise<EnhancedCryptoAnalysis[]> {
     console.log(`EnhancedAIAnalysis: Starting analysis for ${limit} recommendations...`);
     
     try {
-      // Use MEXC as primary source for coin list
-      const coins = await enhancedDataSources.getEnhancedCoinListMEXCPrimary(this.MAX_COINS_TO_ANALYZE);
+      // Use MEXC as primary source for coin list - limit to 500 for better performance
+      const coins = await enhancedDataSources.getEnhancedCoinListMEXCPrimary(500);
       
       if (coins.length === 0) {
         console.warn('No coins available for analysis');
