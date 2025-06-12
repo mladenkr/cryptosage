@@ -46,6 +46,8 @@ import {
 import { EnhancedCryptoAnalysis } from '../services/enhancedAIAnalysis';
 import { enhancedAIAnalysis } from '../services/enhancedAIAnalysis';
 import { useTheme } from '../contexts/ThemeContext';
+import { predictionTracker } from '../services/predictionTracker';
+import PredictionAccuracyDisplay from './PredictionAccuracyDisplay';
 import Sparkline from './Sparkline';
 import {
   formatCurrency,
@@ -137,6 +139,10 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       setRecommendations(analyses);
       setLastUpdated(new Date());
       console.log(`EnhancedAIRecommendations: Loaded ${analyses.length} enhanced recommendations`);
+      
+      // Save predictions for accuracy tracking
+      predictionTracker.savePredictions(analyses);
+      console.log(`📊 Saved ${analyses.length} predictions for accuracy tracking`);
       
       // DISABLE caching for debugging
       console.log('🚫 Caching disabled - not storing results');
@@ -1049,6 +1055,15 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                       </Box>
                     </Box>
 
+                    {/* Compact Prediction Accuracy */}
+                    <Box sx={{ mb: 2 }}>
+                      <PredictionAccuracyDisplay 
+                        coinId={analysis.coin.id}
+                        coinSymbol={analysis.coin.symbol}
+                        compact={true}
+                      />
+                    </Box>
+
                     <Button
                       fullWidth
                       variant="outlined"
@@ -1101,6 +1116,13 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
               </IconButton>
             </DialogTitle>
             <DialogContent>
+              {/* Prediction Accuracy Display */}
+              <PredictionAccuracyDisplay 
+                coinId={selectedAnalysis.coin.id}
+                coinSymbol={selectedAnalysis.coin.symbol}
+                compact={false}
+              />
+              
               <Grid container spacing={3}>
                 {/* Risk Factors */}
                 <Grid item xs={12} md={6}>

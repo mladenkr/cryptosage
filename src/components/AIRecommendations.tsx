@@ -39,6 +39,7 @@ import { CryptoAnalysis } from '../services/technicalAnalysis';
 import { cacheService } from '../services/cacheService';
 import { scheduledDataFetcher } from '../services/scheduledDataFetcher';
 import { useTheme } from '../contexts/ThemeContext';
+import { predictionTracker } from '../services/predictionTracker';
 import Sparkline from './Sparkline';
 import {
   formatCurrency,
@@ -355,6 +356,11 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
       setRecommendations(cached.recommendations);
       setLastUpdated(cached.fetchedAt);
       setError(null);
+      
+      // Save predictions for accuracy tracking
+      predictionTracker.savePredictions(cached.recommendations);
+      console.log(`📊 Saved ${cached.recommendations.length} predictions for accuracy tracking`);
+      
       return true;
     }
     return false;

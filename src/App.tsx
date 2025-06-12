@@ -7,9 +7,9 @@ import { useTheme } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import CoinDetailPage from './components/CoinDetailPage';
-import EnhancedAIRecommendations from './components/EnhancedAIRecommendations';
 import InteractiveCharts from './components/InteractiveCharts';
 import SimpleTest from './components/SimpleTest';
+import Dashboard from './components/Dashboard';
 
 // App content component that uses the theme
 const AppContent: React.FC = () => {
@@ -23,7 +23,7 @@ const AppContent: React.FC = () => {
           <Header />
           <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default' }}>
             <Routes>
-              <Route path="/" element={<EnhancedAIRecommendations />} />
+              <Route path="/" element={<Dashboard />} />
               <Route path="/test" element={<SimpleTest />} />
               <Route path="/coin/:id" element={<CoinDetailPage />} />
               <Route path="/charts/:coinId/:coinSymbol" element={<InteractiveChartsWrapper />} />
