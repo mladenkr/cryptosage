@@ -56,11 +56,19 @@ class MEXCApiService {
   // Create API request with error handling
   private async makeRequest<T>(endpoint: string): Promise<T> {
     try {
-      const response = await fetch(`${MEXC_BASE_URL}${endpoint}`, {
+      // Add timestamp to prevent browser caching
+      const separator = endpoint.includes('?') ? '&' : '?';
+      const cacheBuster = `${separator}_t=${Date.now()}`;
+      const url = `${MEXC_BASE_URL}${endpoint}${cacheBuster}`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'CryptoSage/1.0'
+          'User-Agent': 'CryptoSage/1.0',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       });
 
@@ -326,10 +334,14 @@ class MEXCApiService {
 
   // Get all MEXC USDT trading pairs as primary coin list
   async getAllMEXCCoins(): Promise<Coin[]> {
-    const cacheKey = 'mexc_all_coins_primary_v2'; // Changed cache key to force refresh
+    // const cacheKey = 'mexc_all_coins_primary_v3'; // Disabled for debugging
     
-    // Temporarily disable cache to ensure fresh data with new filtering
-    console.log('🔄 Fetching fresh MEXC data (cache disabled for debugging)');
+    // Clear all existing cache to force fresh data
+    console.log('🧹 Clearing all MEXC cache to force fresh data...');
+    cacheService.clearCache();
+    
+    // Completely disable cache for now
+    console.log('🔄 Fetching completely fresh MEXC data (cache fully disabled)');
     // const cached = cacheService.getCachedMarketData(cacheKey);
     // if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
     //   console.log(`Returning ${cached.length} cached MEXC coins`);
@@ -545,7 +557,7 @@ class MEXCApiService {
         coin.market_cap_rank = index + 1;
       });
       
-      console.log(`📊 MEXC API: Final filtering results:`);
+      console.log(`📊 MEXC API: Final filtering results (${new Date().toISOString()}):`);
       console.log(`  📥 Initial tickers: ${tickers.length}`);
       console.log(`  🚫 Stablecoins filtered: ${tickers.length - filteredTickers.length}`);
       console.log(`  💰 After volume/stability filter: ${filteredCoins.length}`);
@@ -553,6 +565,20 @@ class MEXCApiService {
       console.log('🏆 Top 10 by volume:', filteredCoins.slice(0, 10).map(c => 
         `${c.symbol.toUpperCase()}: $${(c.total_volume / 1000000).toFixed(1)}M`
       ).join(', '));
+      
+      // Log explicitly filtered tokens to verify filtering is working
+      console.log('🚫 Explicitly filtered tokens that were blocked:');
+      const explicitBadTokens = [
+        'bsc-usd', 'bscusd', 'weth', 'wsteth', 'bnsol', 'meth', 'steth', 'reth', 
+        'rseth', 'weeth', 'jitosol', 'lbtc', 'wbtc', 'cbbtc', 'usde', 'susds', 
+        'susde', 'usds', 'usdtb'
+      ];
+      const foundBadTokens = tickers.filter(ticker => {
+        const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
+        return explicitBadTokens.includes(baseSymbol);
+      });
+      console.log(`Found ${foundBadTokens.length} bad tokens in original data:`, 
+        foundBadTokens.map(t => t.symbol.replace('USDT', '')).join(', '));
       
       // Log volume distribution
       const volumeRanges = {
@@ -573,8 +599,9 @@ class MEXCApiService {
         '>$1k': volumeRanges.over1k
       });
 
-      // Cache the result
-      cacheService.cacheMarketData(cacheKey, filteredCoins);
+      // Disable caching for debugging
+      // cacheService.cacheMarketData(cacheKey, filteredCoins);
+      console.log('🚫 Caching disabled - not storing results in cache');
       
       console.log(`Successfully fetched ${filteredCoins.length} MEXC USDT trading pairs`);
       return filteredCoins;

@@ -733,14 +733,18 @@ export const coinGeckoApi = {
 
   // Get coins available on MEXC exchange
   getMEXCCoins: async (limit: number = 100): Promise<Coin[]> => {
-    const cacheKey = `mexc_coins_${limit}`;
+    const cacheKey = `mexc_coins_${limit}_v3`;
     
-    // Check cache first
-    const cached = cacheService.getCachedMarketData(cacheKey);
-    if (cached && Array.isArray(cached) && cached.length > 0) {
-      console.log(`Using cached MEXC coins: ${cached.length} coins`);
-      return cached;
-    }
+    // Clear cache and disable for debugging
+    console.log('🧹 Clearing MEXC coins cache...');
+    cacheService.clearCache();
+    
+    // Disable cache check for now
+    // const cached = cacheService.getCachedMarketData(cacheKey);
+    // if (cached && Array.isArray(cached) && cached.length > 0) {
+    //   console.log(`Using cached MEXC coins: ${cached.length} coins`);
+    //   return cached;
+    // }
 
     try {
       console.log('Fetching MEXC exchange tickers...');
