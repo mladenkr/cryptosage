@@ -21,7 +21,7 @@ import { SelectChangeEvent } from '@mui/material/Select';
 import MarketOverview from './MarketOverview';
 import CoinCard from './CoinCard';
 import { Coin, GlobalData } from '../types';
-import { coinGeckoApi } from '../services/api';
+import { coinGeckoApi, apiService } from '../services/api';
 
 const MarketPage: React.FC = () => {
   const theme = useTheme();
@@ -34,15 +34,21 @@ const MarketPage: React.FC = () => {
   const [sortBy, setSortBy] = useState('market_cap_desc');
   const [searchQuery] = useState('');
   const [filteredCoins, setFilteredCoins] = useState<Coin[]>([]);
-  const [showMEXCOnly, setShowMEXCOnly] = useState(false);
+  const [showMEXCOnly, setShowMEXCOnly] = useState(true);
   const [mexcCoins, setMexcCoins] = useState<Coin[]>([]);
   const [loadingMEXC, setLoadingMEXC] = useState(false);
+  const [useRealTimePrices, setUseRealTimePrices] = useState(true);
+  const [loadingRealTime, setLoadingRealTime] = useState(false);
 
   const coinsPerPage = 20;
 
   useEffect(() => {
     fetchData();
-  }, [page, sortBy]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Auto-fetch MEXC coins on initial load since filter is enabled by default
+    if (showMEXCOnly && mexcCoins.length === 0) {
+      fetchMEXCCoins();
+    }
+  }, [page, sortBy, useRealTimePrices]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Filter coins based on search query and MEXC filter
@@ -71,7 +77,9 @@ const MarketPage: React.FC = () => {
       setError(null);
 
       const [coinsData, globalDataResponse] = await Promise.all([
-        coinGeckoApi.getCoins('usd', sortBy, coinsPerPage, page),
+        useRealTimePrices 
+          ? apiService.getCoinsWithMEXCPrices('usd', sortBy, coinsPerPage, page)
+          : coinGeckoApi.getCoins('usd', sortBy, coinsPerPage, page),
         coinGeckoApi.getGlobalData(),
       ]);
 
@@ -120,6 +128,14 @@ const MarketPage: React.FC = () => {
     }
     setShowMEXCOnly(!showMEXCOnly);
     setPage(1); // Reset to first page when filter changes
+  };
+
+  const handleRealTimePricesToggle = async () => {
+    setLoadingRealTime(true);
+    setUseRealTimePrices(!useRealTimePrices);
+    setPage(1); // Reset to first page when switching data sources
+    // fetchData will be called automatically by useEffect
+    setTimeout(() => setLoadingRealTime(false), 1000); // Give time for data to load
   };
 
   // Removed unused handleSearch function
@@ -188,8 +204,46 @@ const MarketPage: React.FC = () => {
             {searchQuery ? `Search Results for "${searchQuery}"` : 'Top Cryptocurrencies'}
           </Typography>
           
+          {/* Real-time Prices Toggle */}
+          <Tooltip title={useRealTimePrices ? 'Disable real-time MEXC prices' : 'Enable real-time MEXC prices'}>
+            <Button
+              variant={useRealTimePrices ? "contained" : "outlined"}
+              color="success"
+              onClick={handleRealTimePricesToggle}
+              disabled={loadingRealTime || loading}
+              startIcon={loadingRealTime ? <CircularProgress size={16} /> : null}
+              sx={{
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                minWidth: 140,
+                height: 40,
+                background: useRealTimePrices 
+                  ? 'linear-gradient(45deg, #4CAF50 30%, #66BB6A 90%)'
+                  : 'transparent',
+                border: useRealTimePrices ? 'none' : `2px solid ${theme.palette.success.main}`,
+                color: useRealTimePrices ? 'white' : theme.palette.success.main,
+                '&:hover': {
+                  background: useRealTimePrices 
+                    ? 'linear-gradient(45deg, #388E3C 30%, #4CAF50 90%)'
+                    : `${theme.palette.success.main}15`,
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 4px 8px rgba(76, 175, 80, 0.3)',
+                },
+                transition: 'all 0.2s ease-in-out',
+              }}
+            >
+              {loadingRealTime ? 'Switching...' : (
+                <>
+                  <span style={{ fontWeight: 'bold' }}>⚡</span>
+                  <span style={{ marginLeft: 4, fontSize: '0.85em' }}>Real-time</span>
+                </>
+              )}
+            </Button>
+          </Tooltip>
+
           {/* MEXC Filter Button */}
-          <Tooltip title={showMEXCOnly ? 'Remove MEXC filter' : 'Show only MEXC coins'}>
+          <Tooltip title={showMEXCOnly ? 'Show all coins' : 'Show only MEXC coins'}>
             <Button
               variant={showMEXCOnly ? "contained" : "outlined"}
               color="primary"
@@ -226,13 +280,24 @@ const MarketPage: React.FC = () => {
             </Button>
           </Tooltip>
           
-          {/* Active Filter Indicator */}
+          {/* Active Filter Indicators */}
+          {useRealTimePrices && (
+            <Chip
+              label="⚡ Real-time prices active"
+              color="success"
+              variant="filled"
+              size="small"
+              sx={{ fontWeight: 600 }}
+            />
+          )}
+          
           {showMEXCOnly && mexcCoins.length > 0 && (
             <Chip
-              label={`${filteredCoins.length} coins available on MEXC`}
+              label={`Showing ${filteredCoins.length} MEXC coins`}
               color="primary"
-              variant="outlined"
+              variant="filled"
               size="small"
+              sx={{ fontWeight: 600 }}
             />
           )}
         </Box>

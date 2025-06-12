@@ -53,7 +53,7 @@ import {
   getPercentageColor,
 } from '../utils/formatters';
 import { copyToClipboard, formatContractAddress } from '../utils/dexUtils';
-import { coinGeckoApi } from '../services/api';
+import { coinGeckoApi, apiService } from '../services/api';
 import { Coin } from '../types';
 
 interface EnhancedAIRecommendationsProps {
@@ -77,9 +77,13 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [signalFilter, setSignalFilter] = useState<'ALL' | 'LONG' | 'SHORT' | 'NEUTRAL'>('ALL');
   
   // MEXC filter state
-  const [showMEXCOnly, setShowMEXCOnly] = useState(false);
+  const [showMEXCOnly, setShowMEXCOnly] = useState(true);
   const [mexcCoins, setMexcCoins] = useState<Coin[]>([]);
   const [loadingMEXC, setLoadingMEXC] = useState(false);
+  
+  // Real-time prices state
+  const [useRealTimePrices, setUseRealTimePrices] = useState(true);
+  const [loadingRealTime, setLoadingRealTime] = useState(false);
 
   const loadRecommendations = useCallback(async (showLoader = false) => {
     try {
@@ -174,7 +178,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     setSignalFilter(filter);
   };
 
-  const fetchMEXCCoins = async () => {
+  const fetchMEXCCoins = useCallback(async () => {
     try {
       setLoadingMEXC(true);
       console.log('Fetching MEXC coins...');
@@ -187,7 +191,14 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     } finally {
       setLoadingMEXC(false);
     }
-  };
+  }, []);
+
+  // Auto-fetch MEXC coins on initial load since filter is enabled by default
+  useEffect(() => {
+    if (showMEXCOnly && mexcCoins.length === 0) {
+      fetchMEXCCoins();
+    }
+  }, [showMEXCOnly, mexcCoins.length, fetchMEXCCoins]);
 
   const handleMEXCFilter = async () => {
     if (!showMEXCOnly && mexcCoins.length === 0) {
@@ -195,6 +206,31 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       await fetchMEXCCoins();
     }
     setShowMEXCOnly(!showMEXCOnly);
+  };
+
+  const handleRealTimePricesToggle = async () => {
+    setLoadingRealTime(true);
+    setUseRealTimePrices(!useRealTimePrices);
+    
+    // Update coin prices with MEXC real-time data if enabled
+    if (!useRealTimePrices && recommendations.length > 0) {
+      try {
+        const coinsToUpdate = recommendations.map(r => r.coin);
+        const updatedCoins = await apiService.getCoinsWithMEXCPrices('usd', 'market_cap_desc', coinsToUpdate.length, 1);
+        
+        // Update recommendations with new coin data
+        const updatedRecommendations = recommendations.map(rec => {
+          const updatedCoin = updatedCoins.find(coin => coin.id === rec.coin.id);
+          return updatedCoin ? { ...rec, coin: updatedCoin } : rec;
+        });
+        
+        setRecommendations(updatedRecommendations);
+      } catch (error) {
+        console.error('Failed to update with real-time prices:', error);
+      }
+    }
+    
+    setTimeout(() => setLoadingRealTime(false), 1000);
   };
 
   // Filter recommendations based on selected signal type and MEXC filter
@@ -312,8 +348,46 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
         </Box>
         <Box sx={{ textAlign: 'right' }}>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'flex-end' }}>
+            {/* Real-time Prices Toggle */}
+            <Tooltip title={useRealTimePrices ? 'Disable real-time MEXC prices' : 'Enable real-time MEXC prices'}>
+              <Button
+                variant={useRealTimePrices ? "contained" : "outlined"}
+                color="success"
+                onClick={handleRealTimePricesToggle}
+                disabled={loadingRealTime || loading || backgroundLoading}
+                startIcon={loadingRealTime ? <CircularProgress size={16} /> : null}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  minWidth: 140,
+                  height: 40,
+                  background: useRealTimePrices 
+                    ? 'linear-gradient(45deg, #4CAF50 30%, #66BB6A 90%)'
+                    : 'transparent',
+                  border: useRealTimePrices ? 'none' : `2px solid ${theme.palette.success.main}`,
+                  color: useRealTimePrices ? 'white' : theme.palette.success.main,
+                  '&:hover': {
+                    background: useRealTimePrices 
+                      ? 'linear-gradient(45deg, #388E3C 30%, #4CAF50 90%)'
+                      : `${theme.palette.success.main}15`,
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 8px rgba(76, 175, 80, 0.3)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                {loadingRealTime ? 'Switching...' : (
+                  <>
+                    <span style={{ fontWeight: 'bold' }}>⚡</span>
+                    <span style={{ marginLeft: 4, fontSize: '0.85em' }}>Real-time</span>
+                  </>
+                )}
+              </Button>
+            </Tooltip>
+
             {/* MEXC Filter Button */}
-            <Tooltip title={showMEXCOnly ? 'Remove MEXC filter' : 'Show only MEXC coins'}>
+            <Tooltip title={showMEXCOnly ? 'Show all coins' : 'Show only MEXC coins'}>
               <Button
                 variant={showMEXCOnly ? "contained" : "outlined"}
                 color="primary"
@@ -361,17 +435,28 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             </Button>
           </Box>
           
-          {/* Active Filter Indicator */}
-          {showMEXCOnly && mexcCoins.length > 0 && (
-            <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          {/* Active Filter Indicators */}
+          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+            {useRealTimePrices && (
               <Chip
-                label={`${filteredRecommendations.length} coins available on MEXC`}
-                color="primary"
-                variant="outlined"
+                label="⚡ Real-time prices active"
+                color="success"
+                variant="filled"
                 size="small"
+                sx={{ fontWeight: 600 }}
               />
-            </Box>
-          )}
+            )}
+            
+            {showMEXCOnly && mexcCoins.length > 0 && (
+              <Chip
+                label={`Showing ${filteredRecommendations.length} MEXC coins`}
+                color="primary"
+                variant="filled"
+                size="small"
+                sx={{ fontWeight: 600 }}
+              />
+            )}
+          </Box>
           
           {lastUpdated && (
             <Typography variant="caption" display="block" sx={{ mt: 1 }}>
@@ -552,15 +637,29 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                   <Chip
                     label={`#${index + 1}`}
-                    size="small"
+                    size="medium"
                     sx={{
                       backgroundColor: index < 5 
                         ? getRecommendationColor(analysis.recommendation)
-                        : theme.palette.grey[300],
+                        : theme.palette.grey[400],
                       color: 'white',
-                      fontWeight: 500,
-                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      fontSize: '0.875rem',
                       letterSpacing: '0.5px',
+                      height: 32,
+                      minWidth: 48,
+                      borderRadius: 2,
+                      boxShadow: index < 5 
+                        ? '0 2px 8px rgba(0,0,0,0.15)' 
+                        : '0 1px 4px rgba(0,0,0,0.1)',
+                      border: index < 5 
+                        ? '2px solid rgba(255,255,255,0.2)' 
+                        : 'none',
+                      '& .MuiChip-label': {
+                        px: 1.5,
+                        fontFamily: 'monospace',
+                        textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                      },
                     }}
                   />
                   {index < 5 && (
@@ -633,9 +732,30 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                 </Box>
 
                 {/* Price */}
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                  {formatCurrency(analysis.coin.current_price)}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {formatCurrency(analysis.coin.current_price)}
+                  </Typography>
+                  
+                  {/* Real-time price indicator */}
+                  {analysis.coin.price_source === 'MEXC' && (
+                    <Chip
+                      label="⚡"
+                      size="small"
+                      sx={{
+                        height: 18,
+                        minWidth: 18,
+                        backgroundColor: '#4CAF50',
+                        color: 'white',
+                        fontSize: '0.6rem',
+                        '& .MuiChip-label': {
+                          px: 0.3,
+                        },
+                      }}
+                      title="Real-time MEXC price"
+                    />
+                  )}
+                </Box>
 
                 {/* Price Change */}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>

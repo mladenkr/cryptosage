@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Coin, CoinDetail, GlobalData, TrendingCoin } from '../types';
 import { cacheService } from './cacheService';
+import { mexcApiService } from './mexcApi';
 
 // Primary and alternative API endpoints
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
@@ -705,6 +706,28 @@ export const coinGeckoApi = {
       return response.data;
     } catch (error) {
       throw new Error('Exchanges list is currently unavailable');
+    }
+  },
+
+  // Get coins with MEXC real-time prices (enhanced version)
+  getCoinsWithMEXCPrices: async (
+    vs_currency: string = 'usd',
+    order: string = 'market_cap_desc',
+    per_page: number = 100,
+    page: number = 1
+  ): Promise<Coin[]> => {
+    try {
+      // First get regular coin data
+      const coins = await coinGeckoApi.getCoins(vs_currency, order, per_page, page);
+      
+      // Then enhance with MEXC real-time prices
+      const coinsWithMEXCPrices = await mexcApiService.updateCoinsWithMEXCPrices(coins);
+      
+      return coinsWithMEXCPrices;
+    } catch (error) {
+      console.error('Failed to get coins with MEXC prices:', error);
+      // Fallback to regular coins if MEXC integration fails
+      return await coinGeckoApi.getCoins(vs_currency, order, per_page, page);
     }
   },
 

@@ -46,6 +46,19 @@ export interface Coin {
   volatility_score?: number;
   correlation_with_btc?: number;
   fear_greed_index?: number;
+  // MEXC real-time data integration
+  original_price?: number;
+  price_source?: 'CoinGecko' | 'MEXC' | 'Hybrid';
+  price_updated_at?: string;
+  mexc_data?: {
+    symbol: string;
+    bidPrice: number;
+    askPrice: number;
+    volume: number;
+    openPrice: number;
+    source: string;
+    timestamp: number;
+  };
 }
 
 export interface CoinDetail extends Coin {

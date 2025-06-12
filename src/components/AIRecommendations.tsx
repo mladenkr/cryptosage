@@ -660,17 +660,31 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                       <Chip
                         label={`#${index + 1}`}
-                        size="small"
+                        size="medium"
                         sx={{
                           backgroundColor: index < 3 
                             ? (mode === 'light' ? '#21005D' : '#EADDFF') // Primary dark or primary container
-                            : (mode === 'light' ? '#E8DEF8' : '#4A4458'), // Secondary container
+                            : (mode === 'light' ? '#6750A4' : '#4A4458'), // Secondary container
                           color: index < 3 
                             ? (mode === 'light' ? '#FFFFFF' : '#21005D') // White or on primary container
-                            : (mode === 'light' ? '#1D192B' : '#E8DEF8'), // On secondary container
-                          fontWeight: 500,
-                          fontSize: '0.75rem',
+                            : (mode === 'light' ? '#FFFFFF' : '#E8DEF8'), // On secondary container
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
                           letterSpacing: '0.5px',
+                          height: 32,
+                          minWidth: 48,
+                          borderRadius: 2,
+                          boxShadow: index < 3 
+                            ? '0 2px 8px rgba(0,0,0,0.15)' 
+                            : '0 1px 4px rgba(0,0,0,0.1)',
+                          border: index < 3 
+                            ? '2px solid rgba(255,255,255,0.2)' 
+                            : 'none',
+                          '& .MuiChip-label': {
+                            px: 1.5,
+                            fontFamily: 'monospace',
+                            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                          },
                         }}
                       />
                       {index < 3 && (

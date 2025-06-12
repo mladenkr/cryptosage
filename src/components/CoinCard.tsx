@@ -59,14 +59,23 @@ const CoinCard: React.FC<CoinCardProps> = ({ coin, onClick }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Chip
             label={formatRank(coin.market_cap_rank)}
-            size="small"
+            size="medium"
             sx={{
               mr: 1,
-              backgroundColor: mode === 'light' ? '#E8DEF8' : '#4A4458', // Secondary container
-              color: mode === 'light' ? '#1D192B' : '#E8DEF8', // On secondary container
-              fontWeight: 500,
-              fontSize: '0.75rem',
+              backgroundColor: mode === 'light' ? '#6750A4' : '#4A4458', // Secondary container
+              color: mode === 'light' ? '#FFFFFF' : '#E8DEF8', // On secondary container
+              fontWeight: 700,
+              fontSize: '0.875rem',
               letterSpacing: '0.5px',
+              height: 32,
+              minWidth: 48,
+              borderRadius: 2,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              '& .MuiChip-label': {
+                px: 1.5,
+                fontFamily: 'monospace',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+              },
             }}
           />
           <Avatar
@@ -99,17 +108,37 @@ const CoinCard: React.FC<CoinCardProps> = ({ coin, onClick }) => {
         </Box>
 
         {/* Price */}
-        <Typography
-          variant="h5"
-          component="div"
-          sx={{
-            fontWeight: 700,
-            mb: 1,
-            color: theme.palette.text.primary,
-          }}
-        >
-          {formatCurrency(coin.current_price)}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
+          <Typography
+            variant="h5"
+            component="div"
+            sx={{
+              fontWeight: 700,
+              color: theme.palette.text.primary,
+            }}
+          >
+            {formatCurrency(coin.current_price)}
+          </Typography>
+          
+          {/* Real-time price indicator */}
+          {coin.price_source === 'MEXC' && (
+            <Chip
+              label="⚡"
+              size="small"
+              sx={{
+                height: 20,
+                minWidth: 20,
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                fontSize: '0.7rem',
+                '& .MuiChip-label': {
+                  px: 0.5,
+                },
+              }}
+              title="Real-time MEXC price"
+            />
+          )}
+        </Box>
 
         {/* Price change */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
