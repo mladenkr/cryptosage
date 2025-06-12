@@ -1,5 +1,5 @@
 import { CryptoAnalysis } from './technicalAnalysis';
-import { enhancedDataSources, EnhancedCoinData } from './enhancedDataSources';
+import { EnhancedCoinData } from './enhancedDataSources';
 
 // Enhanced analysis with multiple AI models
 export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
@@ -395,25 +395,34 @@ export class EnhancedAIAnalysis {
   
   // Get enhanced recommendations for many coins
   async getEnhancedRecommendations(limit: number = 100): Promise<EnhancedCryptoAnalysis[]> {
-    console.log(`EnhancedAIAnalysis: Starting analysis for ${limit} recommendations...`);
+    console.log(`🚀 STREAMLINED AI ANALYSIS: Starting analysis for ${limit} recommendations...`);
     
     try {
-      // Use MEXC as primary source for coin list - limit to 500 for better performance
-      const coins = await enhancedDataSources.getEnhancedCoinListMEXCPrimary(500);
+      // Import the streamlined data sources
+      const { streamlinedEnhancedDataSources } = await import('./streamlinedEnhancedDataSources');
+      
+      // Use streamlined data fetching - much simpler and more reliable
+      const coins = await streamlinedEnhancedDataSources.getStreamlinedEnhancedCoinList(limit * 2);
       
       if (coins.length === 0) {
-        console.warn('No coins available for analysis');
+        console.warn('⚠️ No coins available from streamlined data sources');
         return [];
       }
 
-      console.log(`EnhancedAIAnalysis: Analyzing ${coins.length} coins from MEXC primary source...`);
+      console.log(`📊 STREAMLINED: Analyzing ${coins.length} coins from MEXC USDT pairs...`);
+      
+      // Log the first 10 coins to verify they're clean
+      console.log('🔍 STREAMLINED: First 10 coins for analysis:');
+      coins.slice(0, 10).forEach((coin, index) => {
+        console.log(`  ${index + 1}. ${coin.symbol.toUpperCase()} - $${coin.current_price} (Vol: $${coin.total_volume.toLocaleString()})`);
+      });
       
       // Process coins in batches for better performance
       const analyses: EnhancedCryptoAnalysis[] = [];
       
       for (let i = 0; i < coins.length; i += this.BATCH_SIZE) {
         const batch = coins.slice(i, i + this.BATCH_SIZE);
-        console.log(`EnhancedAIAnalysis: Processing batch ${Math.floor(i / this.BATCH_SIZE) + 1}/${Math.ceil(coins.length / this.BATCH_SIZE)} (${batch.length} coins)`);
+        console.log(`🔄 STREAMLINED: Processing batch ${Math.floor(i / this.BATCH_SIZE) + 1}/${Math.ceil(coins.length / this.BATCH_SIZE)} (${batch.length} coins)`);
         
         const batchPromises = batch.map(coin => this.analyzeEnhancedCoin(coin));
         const batchResults = await Promise.allSettled(batchPromises);
@@ -428,19 +437,18 @@ export class EnhancedAIAnalysis {
         
         // Small delay between batches to avoid overwhelming the system
         if (i + this.BATCH_SIZE < coins.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
 
       if (analyses.length === 0) {
-        console.warn('No successful analyses completed');
+        console.warn('⚠️ No successful analyses completed');
         return [];
       }
 
-      console.log(`EnhancedAIAnalysis: Completed ${analyses.length} analyses`);
+      console.log(`✅ STREAMLINED: Completed ${analyses.length} analyses`);
 
       // Sort by prediction magnitude (absolute value) first, then by confidence
-      // This prioritizes coins with larger expected price movements regardless of direction
       const sortedAnalyses = analyses.sort((a, b) => {
         // Primary sort: Absolute value of 24h prediction (larger movements first)
         const aPredictionMagnitude = Math.abs(a.predictions['24h']);
@@ -461,17 +469,20 @@ export class EnhancedAIAnalysis {
 
       const topRecommendations = sortedAnalyses.slice(0, limit);
       
-      console.log(`EnhancedAIAnalysis: Returning top ${topRecommendations.length} recommendations`);
-      console.log('Top 5 recommendations by prediction magnitude:');
-      topRecommendations.slice(0, 5).forEach((analysis, index) => {
-        console.log(`${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% (confidence: ${analysis.confidence.toFixed(1)}%)`);
+      // Final verification - log what we're returning
+      console.log(`🎯 STREAMLINED: Final ${topRecommendations.length} recommendations:`);
+      topRecommendations.slice(0, 10).forEach((analysis, index) => {
+        console.log(`  ${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% (confidence: ${analysis.confidence.toFixed(1)}%)`);
       });
+      
+      console.log(`🚀 STREAMLINED: Successfully returning ${topRecommendations.length} clean recommendations`);
       
       return topRecommendations;
       
     } catch (error) {
-      console.error('Error in getEnhancedRecommendations:', error);
-      return [];
+      console.error('❌ STREAMLINED: Error in getEnhancedRecommendations:', error);
+      // Re-throw the error so the UI can show the specific error message
+      throw error;
     }
   }
   

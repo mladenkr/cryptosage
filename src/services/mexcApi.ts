@@ -552,58 +552,17 @@ class MEXCApiService {
         return true;
       });
       
-      // Update market cap ranks based on volume ranking
-      filteredCoins.forEach((coin, index) => {
-        coin.market_cap_rank = index + 1;
+      // DEBUG: Log the first 20 coins being returned from MEXC API
+      console.log('🔍 DEBUG: First 20 coins being returned from MEXC API:');
+      filteredCoins.slice(0, 20).forEach((coin, index) => {
+        console.log(`  ${index + 1}. ${coin.symbol.toUpperCase()} (${coin.id}) - $${coin.current_price}, Vol: $${coin.total_volume.toLocaleString()}`);
       });
       
-      console.log(`📊 MEXC API: Final filtering results (${new Date().toISOString()}):`);
-      console.log(`  📥 Initial tickers: ${tickers.length}`);
-      console.log(`  🚫 Stablecoins filtered: ${tickers.length - filteredTickers.length}`);
-      console.log(`  💰 After volume/stability filter: ${filteredCoins.length}`);
-      console.log(`  ✅ Final coins for analysis: ${filteredCoins.length}`);
-      console.log('🏆 Top 10 by volume:', filteredCoins.slice(0, 10).map(c => 
-        `${c.symbol.toUpperCase()}: $${(c.total_volume / 1000000).toFixed(1)}M`
-      ).join(', '));
+      console.log(`🎯 Final MEXC API Results: ${filteredCoins.length} coins (filtered from ${mexcCoins.length} after volume/stability checks)`);
       
-      // Log explicitly filtered tokens to verify filtering is working
-      console.log('🚫 Explicitly filtered tokens that were blocked:');
-      const explicitBadTokens = [
-        'bsc-usd', 'bscusd', 'weth', 'wsteth', 'bnsol', 'meth', 'steth', 'reth', 
-        'rseth', 'weeth', 'jitosol', 'lbtc', 'wbtc', 'cbbtc', 'usde', 'susds', 
-        'susde', 'usds', 'usdtb'
-      ];
-      const foundBadTokens = tickers.filter(ticker => {
-        const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
-        return explicitBadTokens.includes(baseSymbol);
-      });
-      console.log(`Found ${foundBadTokens.length} bad tokens in original data:`, 
-        foundBadTokens.map(t => t.symbol.replace('USDT', '')).join(', '));
-      
-      // Log volume distribution
-      const volumeRanges = {
-        over100M: filteredCoins.filter(c => c.total_volume > 100000000).length,
-        over10M: filteredCoins.filter(c => c.total_volume > 10000000).length,
-        over1M: filteredCoins.filter(c => c.total_volume > 1000000).length,
-        over100k: filteredCoins.filter(c => c.total_volume > 100000).length,
-        over10k: filteredCoins.filter(c => c.total_volume > 10000).length,
-        over1k: filteredCoins.filter(c => c.total_volume > 1000).length
-      };
-      
-      console.log('📈 Volume distribution:', {
-        '>$100M': volumeRanges.over100M,
-        '>$10M': volumeRanges.over10M,
-        '>$1M': volumeRanges.over1M,
-        '>$100k': volumeRanges.over100k,
-        '>$10k': volumeRanges.over10k,
-        '>$1k': volumeRanges.over1k
-      });
-
-      // Disable caching for debugging
+      // Cache the results (disabled for debugging)
       // cacheService.cacheMarketData(cacheKey, filteredCoins);
-      console.log('🚫 Caching disabled - not storing results in cache');
       
-      console.log(`Successfully fetched ${filteredCoins.length} MEXC USDT trading pairs`);
       return filteredCoins;
       
     } catch (error) {

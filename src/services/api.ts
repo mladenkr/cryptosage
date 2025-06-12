@@ -895,6 +895,12 @@ export const coinGeckoApi = {
     try {
       console.log(`Enhancing ${mexcCoins.length} MEXC coins with CoinGecko metadata...`);
       
+      // DEBUG: Log the first 20 MEXC coins being processed
+      console.log('🔍 DEBUG: First 20 MEXC coins being processed:');
+      mexcCoins.slice(0, 20).forEach((coin, index) => {
+        console.log(`  ${index + 1}. ${coin.symbol.toUpperCase()} (${coin.id}) - $${coin.current_price}`);
+      });
+      
       // Get a comprehensive list of CoinGecko coins for matching
       const allCoinGeckoCoins = await fetchCoinsWithFallback('usd', 'market_cap_desc', 2000, 1);
       console.log(`Fetched ${allCoinGeckoCoins.length} CoinGecko coins for matching`);
@@ -1170,6 +1176,13 @@ export const coinGeckoApi = {
       // Update market cap ranks based on final sorting
       enhancedCoins.forEach((coin, index) => {
         coin.market_cap_rank = index + 1;
+      });
+      
+      // DEBUG: Log the first 20 enhanced coins being returned
+      console.log('🔍 DEBUG: First 20 enhanced coins being returned:');
+      enhancedCoins.slice(0, 20).forEach((coin, index) => {
+        const mcap = coin.market_cap > 0 ? `$${(coin.market_cap / 1000000000).toFixed(1)}B` : 'No MCap';
+        console.log(`  ${index + 1}. ${coin.symbol.toUpperCase()}: ${mcap}, $${coin.current_price} (${coin.price_source})`);
       });
       
       console.log(`Final enhanced coin list: ${enhancedCoins.length} coins`);

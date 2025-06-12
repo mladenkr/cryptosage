@@ -43,7 +43,8 @@ import {
   ShoppingCart as ShoppingCartIcon,
   AccountTree as NetworkIcon,
 } from '@mui/icons-material';
-import { EnhancedCryptoAnalysis, enhancedAIAnalysis } from '../services/enhancedAIAnalysis';
+import { EnhancedCryptoAnalysis } from '../services/enhancedAIAnalysis';
+import { enhancedAIAnalysis } from '../services/enhancedAIAnalysis';
 import { useTheme } from '../contexts/ThemeContext';
 import Sparkline from './Sparkline';
 import {
