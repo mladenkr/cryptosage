@@ -1,4 +1,5 @@
 import { Coin } from '../types';
+import { apiService } from './api';
 
 // Enhanced coin data interface with additional fields from multiple sources
 export interface EnhancedCoinData extends Coin {
@@ -570,6 +571,89 @@ export class EnhancedDataSources {
     if (symbolLower.includes('optimism')) return 'Optimism';
     
     return undefined;
+  }
+
+  // New MEXC-first approach for enhanced coin list
+  async getEnhancedCoinListMEXCPrimary(limit: number = 1000): Promise<EnhancedCoinData[]> {
+    console.log(`Fetching enhanced coin list with MEXC as primary source (limit: ${limit})...`);
+    
+    try {
+             // Get MEXC coins as primary source
+       const mexcCoins = await apiService.getCoinsWithMEXCPrimary(limit);
+      
+      if (mexcCoins.length === 0) {
+        console.warn('No MEXC coins found, falling back to regular enhanced list');
+        return await this.getEnhancedCoinList(limit);
+      }
+      
+      // Convert to EnhancedCoinData and add additional metrics
+      const enhancedCoins: EnhancedCoinData[] = mexcCoins.map(coin => this.convertToEnhancedCoinData(coin));
+      
+      // Filter for analysis-worthy coins
+      const validCoins = enhancedCoins.filter(coin => this.isValidForAnalysis(coin));
+      
+      console.log(`MEXC Primary: Found ${mexcCoins.length} coins, ${validCoins.length} valid for analysis`);
+      return validCoins;
+      
+    } catch (error) {
+      console.error('Error in getEnhancedCoinListMEXCPrimary:', error);
+      // Fallback to regular enhanced list
+      return await this.getEnhancedCoinList(limit);
+    }
+  }
+
+     // Convert regular Coin to EnhancedCoinData
+   private convertToEnhancedCoinData(coin: Coin): EnhancedCoinData {
+    return {
+      ...coin,
+      // Add enhanced fields with defaults
+      price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      price_change_percentage_7d: coin.price_change_percentage_7d || 0,
+      price_change_percentage_30d: coin.price_change_percentage_30d || 0,
+      price_change_percentage_1y: coin.price_change_percentage_1y || 0,
+      
+      // Volume metrics
+      volume_change_24h: 0, // Not available from basic coin data
+      volume_change_percentage_24h: 0,
+      
+      // Supply metrics
+      circulating_supply_percentage: coin.max_supply && coin.circulating_supply ? 
+        (coin.circulating_supply / coin.max_supply) * 100 : undefined,
+      
+      // Social and development metrics (defaults)
+      developer_score: coin.developer_score || 0,
+      community_score: coin.community_score || 0,
+      liquidity_score: coin.liquidity_score || this.calculateBasicLiquidityScore(coin),
+      public_interest_score: 0,
+      
+      // Exchange and trading data
+      tickers: [],
+      
+      // Network and contract information
+      network: this.detectNetworkFromSymbol(coin.symbol, coin.id),
+      contract_address: undefined, // Would need additional API calls
+      is_native_token: this.isNativeToken(coin.symbol, coin.id),
+      
+      // Data quality and source tracking
+      data_sources: coin.price_source === 'MEXC' ? ['MEXC', 'CoinGecko'] : ['CoinGecko'],
+      data_quality_score: coin.price_source === 'MEXC' ? 95 : 85, // Higher score for real-time data
+      last_updated_source: coin.price_source === 'MEXC' ? 'MEXC' : 'CoinGecko',
+      source_url: `https://www.coingecko.com/en/coins/${coin.id}`
+    };
+  }
+
+  // Calculate basic liquidity score from available data
+  private calculateBasicLiquidityScore(coin: Coin): number {
+    if (!coin.market_cap || !coin.total_volume) return 0;
+    
+    const volumeToMarketCap = coin.total_volume / coin.market_cap;
+    
+    if (volumeToMarketCap > 0.3) return 95; // Extremely liquid
+    if (volumeToMarketCap > 0.15) return 85; // Very liquid
+    if (volumeToMarketCap > 0.08) return 75; // Good liquidity
+    if (volumeToMarketCap > 0.03) return 60; // Moderate liquidity
+    if (volumeToMarketCap > 0.01) return 40; // Low liquidity
+    return 20; // Very low liquidity
   }
 }
 

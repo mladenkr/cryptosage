@@ -385,26 +385,26 @@ export class EnhancedAIAnalysis {
   
   // Get enhanced recommendations for many coins
   async getEnhancedRecommendations(limit: number = 50): Promise<EnhancedCryptoAnalysis[]> {
-    console.log(`EnhancedAIAnalysis: Starting analysis of up to ${this.MAX_COINS_TO_ANALYZE} coins...`);
+    console.log(`EnhancedAIAnalysis: Starting analysis for ${limit} recommendations...`);
     
     try {
-      // Get enhanced coin data from multiple sources
-      const coins = await enhancedDataSources.getEnhancedCoinList(this.MAX_COINS_TO_ANALYZE);
-      console.log(`EnhancedAIAnalysis: Retrieved ${coins.length} coins for analysis`);
+      // Use MEXC as primary source for coin list
+      const coins = await enhancedDataSources.getEnhancedCoinListMEXCPrimary(this.MAX_COINS_TO_ANALYZE);
       
       if (coins.length === 0) {
-        console.warn('EnhancedAIAnalysis: No coins retrieved for analysis');
+        console.warn('No coins available for analysis');
         return [];
       }
+
+      console.log(`EnhancedAIAnalysis: Analyzing ${coins.length} coins from MEXC primary source...`);
       
-      // Process coins in batches to avoid overwhelming the system
+      // Process coins in batches for better performance
       const analyses: EnhancedCryptoAnalysis[] = [];
       
       for (let i = 0; i < coins.length; i += this.BATCH_SIZE) {
         const batch = coins.slice(i, i + this.BATCH_SIZE);
         console.log(`EnhancedAIAnalysis: Processing batch ${Math.floor(i / this.BATCH_SIZE) + 1}/${Math.ceil(coins.length / this.BATCH_SIZE)} (${batch.length} coins)`);
         
-        // Process batch in parallel
         const batchPromises = batch.map(coin => this.analyzeEnhancedCoin(coin));
         const batchResults = await Promise.allSettled(batchPromises);
         
@@ -416,75 +416,51 @@ export class EnhancedAIAnalysis {
           }
         });
         
-        // Small delay between batches to be respectful
+        // Small delay between batches to avoid overwhelming the system
         if (i + this.BATCH_SIZE < coins.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
-      
-      // Sort by price prediction magnitude as the main factor (absolute value)
-      const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary sort: Absolute price prediction magnitude (bigger moves = higher priority)
-        const aPredictionAbs = Math.abs(a.predictions['24h']);
-        const bPredictionAbs = Math.abs(b.predictions['24h']);
-        const predictionDiff = bPredictionAbs - aPredictionAbs;
-        if (Math.abs(predictionDiff) > 0.1) return predictionDiff;
-        
-        // Secondary sort: Confidence for coins with similar prediction magnitude
-        const confidenceDiff = b.confidence - a.confidence;
-        if (Math.abs(confidenceDiff) > 1) return confidenceDiff;
-        
-        // Tertiary sort: liquidity score (prefer more liquid assets)
-        return b.liquidityScore - a.liquidityScore;
-      });
-      
-      // Ensure balanced signal distribution
-      const longSignals = sortedAnalyses.filter(a => a.recommendation === 'LONG');
-      const shortSignals = sortedAnalyses.filter(a => a.recommendation === 'SHORT');
-      const neutralSignals = sortedAnalyses.filter(a => a.recommendation === 'NEUTRAL');
-      
-      // Create balanced result: maintain prediction magnitude priority
-      const balancedResult: EnhancedCryptoAnalysis[] = [];
-      
-      // Add top performers (LONG signals) - up to 60% of results
-      const maxLongs = Math.min(longSignals.length, Math.floor(limit * 0.6));
-      balancedResult.push(...longSignals.slice(0, maxLongs));
-      
-      // Add SHORT signals - ensure at least 10% representation if available
-      const maxShorts = Math.min(shortSignals.length, Math.floor(limit * 0.25));
-      balancedResult.push(...shortSignals.slice(0, maxShorts));
-      
-      // Fill remaining with NEUTRAL signals
-      const remaining = limit - balancedResult.length;
-      if (remaining > 0) {
-        balancedResult.push(...neutralSignals.slice(0, remaining));
+
+      if (analyses.length === 0) {
+        console.warn('No successful analyses completed');
+        return [];
       }
 
-      // Final result: maintain prediction magnitude priority (don't re-sort by AI score)
-      const finalResult = balancedResult
-        .sort((a, b) => {
-          // Keep prediction magnitude as primary sort
-          const aPredictionAbs = Math.abs(a.predictions['24h']);
-          const bPredictionAbs = Math.abs(b.predictions['24h']);
-          const predictionDiff = bPredictionAbs - aPredictionAbs;
-          if (Math.abs(predictionDiff) > 0.1) return predictionDiff;
-          
-          // Secondary sort: Confidence
-          return b.confidence - a.confidence;
-        })
-        .slice(0, limit);
+      console.log(`EnhancedAIAnalysis: Completed ${analyses.length} analyses`);
 
-      console.log(`EnhancedAIAnalysis: Successfully analyzed ${sortedAnalyses.length} coins`);
-      console.log(`Signal distribution: ${longSignals.length} LONG, ${shortSignals.length} SHORT, ${neutralSignals.length} NEUTRAL`);
-      console.log(`Final result: ${finalResult.filter(a => a.recommendation === 'LONG').length} LONG, ${finalResult.filter(a => a.recommendation === 'SHORT').length} SHORT, ${finalResult.filter(a => a.recommendation === 'NEUTRAL').length} NEUTRAL`);
-      console.log('Top 5 by prediction magnitude:', finalResult.slice(0, 5).map(a => 
-        `${a.coin.symbol}: ${a.predictions['24h'].toFixed(2)}% (Confidence: ${a.confidence.toFixed(1)}%, ${a.recommendation})`
-      ));
+      // Sort by prediction magnitude (absolute value) first, then by confidence
+      // This prioritizes coins with larger expected price movements regardless of direction
+      const sortedAnalyses = analyses.sort((a, b) => {
+        // Primary sort: Absolute value of 24h prediction (larger movements first)
+        const aPredictionMagnitude = Math.abs(a.predictions['24h']);
+        const bPredictionMagnitude = Math.abs(b.predictions['24h']);
+        
+        if (Math.abs(aPredictionMagnitude - bPredictionMagnitude) > 0.1) {
+          return bPredictionMagnitude - aPredictionMagnitude;
+        }
+        
+        // Secondary sort: Confidence (higher confidence first)
+        if (Math.abs(a.confidence - b.confidence) > 1) {
+          return b.confidence - a.confidence;
+        }
+        
+        // Tertiary sort: Liquidity score (higher liquidity first)
+        return b.liquidityScore - a.liquidityScore;
+      });
+
+      const topRecommendations = sortedAnalyses.slice(0, limit);
       
-      return finalResult;
+      console.log(`EnhancedAIAnalysis: Returning top ${topRecommendations.length} recommendations`);
+      console.log('Top 5 recommendations by prediction magnitude:');
+      topRecommendations.slice(0, 5).forEach((analysis, index) => {
+        console.log(`${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% (confidence: ${analysis.confidence.toFixed(1)}%)`);
+      });
+      
+      return topRecommendations;
       
     } catch (error) {
-      console.error('EnhancedAIAnalysis: Error in enhanced analysis:', error);
+      console.error('Error in getEnhancedRecommendations:', error);
       return [];
     }
   }

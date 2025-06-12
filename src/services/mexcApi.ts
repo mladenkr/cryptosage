@@ -323,6 +323,266 @@ class MEXCApiService {
     await this.initializeSymbolMappings();
     return Array.from(this.mexcSymbols);
   }
+
+  // Get all MEXC USDT trading pairs as primary coin list
+  async getAllMEXCCoins(): Promise<Coin[]> {
+    const cacheKey = 'mexc_all_coins_primary';
+    
+    // Check cache first (5 minute cache for coin list)
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      console.log(`Returning ${cached.length} cached MEXC coins`);
+      return cached;
+    }
+
+    try {
+      console.log('Fetching all MEXC USDT trading pairs as primary coin list...');
+      
+      // Initialize symbol mappings first
+      await this.initializeSymbolMappings();
+      
+      // Get all 24hr tickers for USDT pairs
+      const tickers = await this.getAll24hrTickers();
+      
+      // Convert MEXC tickers to Coin format
+      const mexcCoins: Coin[] = tickers.map((ticker, index) => {
+        const baseSymbol = ticker.symbol.replace('USDT', '').toLowerCase();
+        const coinId = this.getCoinGeckoIdFromSymbol(baseSymbol);
+        
+        const currentPrice = parseFloat(ticker.lastPrice) || 0;
+        const priceChange24h = parseFloat(ticker.priceChange) || 0;
+        const priceChangePercent24h = parseFloat(ticker.priceChangePercent) || 0;
+        const volume24h = parseFloat(ticker.quoteVolume) || 0;
+        const high24h = parseFloat(ticker.highPrice) || 0;
+        const low24h = parseFloat(ticker.lowPrice) || 0;
+        
+        return {
+          id: coinId,
+          symbol: baseSymbol,
+          name: baseSymbol.toUpperCase(),
+          image: `https://assets.coingecko.com/coins/images/1/large/${baseSymbol}.png`,
+          current_price: currentPrice,
+          market_cap: 0, // Will be filled from CoinGecko
+          market_cap_rank: index + 1, // Temporary ranking by volume
+          fully_diluted_valuation: 0,
+          total_volume: volume24h,
+          high_24h: high24h,
+          low_24h: low24h,
+          price_change_24h: priceChange24h,
+          price_change_percentage_24h: priceChangePercent24h,
+          market_cap_change_24h: 0,
+          market_cap_change_percentage_24h: priceChangePercent24h,
+          circulating_supply: 0,
+          total_supply: 0,
+          max_supply: null,
+          ath: high24h || currentPrice,
+          ath_change_percentage: 0,
+          ath_date: new Date().toISOString(),
+          atl: low24h || currentPrice,
+          atl_change_percentage: 0,
+          atl_date: new Date().toISOString(),
+          roi: null,
+          last_updated: new Date().toISOString(),
+          sparkline_in_7d: { price: [] },
+          sparkline_in_24h: { price: [] },
+          
+          // MEXC-specific metadata
+          original_price: currentPrice,
+          price_source: 'MEXC' as const,
+          price_updated_at: new Date().toISOString(),
+                     mexc_data: {
+             symbol: ticker.symbol,
+             bidPrice: parseFloat(ticker.bidPrice) || 0,
+             askPrice: parseFloat(ticker.askPrice) || 0,
+             volume: parseFloat(ticker.volume) || 0,
+             openPrice: parseFloat(ticker.openPrice) || 0,
+             source: 'MEXC',
+             timestamp: ticker.closeTime || Date.now()
+           }
+        };
+      });
+
+      // Sort by volume (highest first) for better ranking
+      mexcCoins.sort((a, b) => b.total_volume - a.total_volume);
+      
+      // Update market cap ranks based on volume
+      mexcCoins.forEach((coin, index) => {
+        coin.market_cap_rank = index + 1;
+      });
+
+      // Cache the result
+      cacheService.cacheMarketData(cacheKey, mexcCoins);
+      
+      console.log(`Successfully fetched ${mexcCoins.length} MEXC USDT trading pairs`);
+      return mexcCoins;
+      
+    } catch (error) {
+      console.error('Failed to fetch all MEXC coins:', error);
+      return [];
+    }
+  }
+
+  // Enhanced symbol mapping with more comprehensive coverage
+  private getCoinGeckoIdFromSymbol(symbol: string): string {
+    const symbolLower = symbol.toLowerCase();
+    
+    // Comprehensive symbol to CoinGecko ID mapping
+    const symbolMappings: { [key: string]: string } = {
+      // Major cryptocurrencies
+      'btc': 'bitcoin',
+      'eth': 'ethereum',
+      'bnb': 'binancecoin',
+      'ada': 'cardano',
+      'sol': 'solana',
+      'xrp': 'ripple',
+      'dot': 'polkadot',
+      'doge': 'dogecoin',
+      'avax': 'avalanche-2',
+      'matic': 'matic-network',
+      'link': 'chainlink',
+      'ltc': 'litecoin',
+      'bch': 'bitcoin-cash',
+      'xlm': 'stellar',
+      'vet': 'vechain',
+      'fil': 'filecoin',
+      'trx': 'tron',
+      'etc': 'ethereum-classic',
+      'atom': 'cosmos',
+      'near': 'near',
+      'algo': 'algorand',
+      'mana': 'decentraland',
+      'sand': 'the-sandbox',
+      'gala': 'gala',
+      'axs': 'axie-infinity',
+      'chz': 'chiliz',
+      'ens': 'ethereum-name-service',
+      'lrc': 'loopring',
+      'cro': 'crypto-com-chain',
+      'ftm': 'fantom',
+      'one': 'harmony',
+      'hbar': 'hedera-hashgraph',
+      'icp': 'internet-computer',
+      'theta': 'theta-token',
+      'egld': 'elrond-erd-2',
+      'xtz': 'tezos',
+      'eos': 'eos',
+      'neo': 'neo',
+      'waves': 'waves',
+      'zil': 'zilliqa',
+      'icx': 'icon',
+      'ont': 'ontology',
+      'qtum': 'qtum',
+      'zec': 'zcash',
+      'dash': 'dash',
+      'dcr': 'decred',
+      'xmr': 'monero',
+      'bsv': 'bitcoin-sv',
+      'btg': 'bitcoin-gold',
+      'dgb': 'digibyte',
+      'rvn': 'ravencoin',
+      'sc': 'siacoin',
+      'zen': 'horizen',
+      'kmd': 'komodo',
+      'ark': 'ark',
+      'lsk': 'lisk',
+      'strat': 'stratis',
+      'nano': 'nano',
+      'xem': 'nem',
+      'bat': 'basic-attention-token',
+      'zrx': '0x',
+      'omg': 'omisego',
+      'knc': 'kyber-network-crystal',
+      'mkr': 'maker',
+      'dai': 'dai',
+      'comp': 'compound-governance-token',
+      'aave': 'aave',
+      'uni': 'uniswap',
+      'sushi': 'sushi',
+      'cake': 'pancakeswap-token',
+      '1inch': '1inch',
+      'crv': 'curve-dao-token',
+      'yfi': 'yearn-finance',
+      'snx': 'havven',
+      'uma': 'uma',
+      'bal': 'balancer',
+      'ren': 'republic-protocol',
+      'kcs': 'kucoin-shares',
+      'ht': 'huobi-token',
+      'okb': 'okb',
+      'leo': 'leo-token',
+      'usdc': 'usd-coin',
+      'usdt': 'tether',
+      'busd': 'binance-usd',
+      'tusd': 'true-usd',
+      'pax': 'paxos-standard',
+      'gusd': 'gemini-dollar',
+      'husd': 'husd',
+      'ust': 'terrausd',
+      'frax': 'frax',
+      'fei': 'fei-usd',
+      'lusd': 'liquity-usd',
+      'mim': 'magic-internet-money',
+      'spell': 'spell-token',
+      'ice': 'ice-token',
+      'time': 'wonderland',
+      'memo': 'wonderland',
+      'ohm': 'olympus',
+      'klima': 'klima-dao',
+      'bct': 'toucan-protocol-base-carbon-tonne',
+      'mco2': 'moss-carbon-credit',
+      'nct': 'toucan-protocol-nature-carbon-tonne',
+      'ape': 'apecoin',
+      'looks': 'looksrare',
+      'x2y2': 'x2y2',
+      'blur': 'blur',
+      'magic': 'magic',
+      'gmx': 'gmx',
+      'joe': 'joe',
+      'png': 'pangolin',
+      'qi': 'benqi',
+      'xava': 'avalaunch',
+      'pefi': 'penguin-finance',
+      'snob': 'snowball-token',
+      'teddy': 'teddy-cash',
+      'melt': 'defrost-finance-token',
+      'cycle': 'cycle-token',
+      'sherpa': 'sherpa-cash',
+      'elk': 'elk-finance',
+      'yak': 'yield-yak',
+      'olive': 'olive-cash',
+      'spore': 'spore-finance',
+      'husky': 'husky-avax',
+      'walbt': 'wrapped-algorand',
+      'weth': 'weth',
+      'wbtc': 'wrapped-bitcoin',
+      'wbnb': 'wbnb',
+      'wmatic': 'wmatic',
+      'wavax': 'wrapped-avax',
+      'wsol': 'wrapped-solana',
+      'wftm': 'wrapped-fantom',
+      'wone': 'wrapped-one',
+      'wcro': 'wrapped-cro',
+      'whbar': 'wrapped-hbar',
+      'wicp': 'wrapped-icp',
+      'wtheta': 'wrapped-theta',
+      'wegld': 'wrapped-egld',
+      'wxtz': 'wrapped-tezos',
+      'weos': 'wrapped-eos',
+      'wneo': 'wrapped-neo',
+      'wwaves': 'wrapped-waves',
+      'wzil': 'wrapped-zilliqa',
+      'wicx': 'wrapped-icon',
+      'wont': 'wrapped-ontology',
+      'wqtum': 'wrapped-qtum',
+      'wzec': 'wrapped-zcash',
+      'wdash': 'wrapped-dash',
+      'wdcr': 'wrapped-decred',
+      'wxmr': 'wrapped-monero'
+    };
+
+    // Return mapped ID or use symbol as fallback
+    return symbolMappings[symbolLower] || symbolLower;
+  }
 }
 
 // Export singleton instance
