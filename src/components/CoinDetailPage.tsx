@@ -147,7 +147,7 @@ const CoinDetailPage: React.FC = () => {
           onClick={handleBackClick}
           sx={{ mb: 2 }}
         >
-          Back to Dashboard
+          Back to AI Analysis
         </Button>
         <Alert severity="error">
           {error || 'Coin not found'}
@@ -167,7 +167,7 @@ const CoinDetailPage: React.FC = () => {
         sx={{ mb: 3 }}
         variant="outlined"
       >
-        Back to Dashboard
+        Back to AI Analysis
       </Button>
 
       {/* Header */}

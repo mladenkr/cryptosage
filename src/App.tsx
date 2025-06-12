@@ -6,7 +6,6 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { useTheme } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
-import Dashboard from './components/Dashboard';
 import CoinDetailPage from './components/CoinDetailPage';
 import EnhancedAIRecommendations from './components/EnhancedAIRecommendations';
 import InteractiveCharts from './components/InteractiveCharts';
@@ -27,7 +26,6 @@ const AppContent: React.FC = () => {
               <Route path="/" element={<EnhancedAIRecommendations />} />
               <Route path="/test" element={<SimpleTest />} />
               <Route path="/coin/:id" element={<CoinDetailPage />} />
-              <Route path="/basic-dashboard" element={<Dashboard />} />
               <Route path="/charts/:coinId/:coinSymbol" element={<InteractiveChartsWrapper />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
