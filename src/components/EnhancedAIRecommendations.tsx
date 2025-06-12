@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
+  Typography,
   Card,
   CardContent,
-  Typography,
-  Box,
   Grid,
-  Avatar,
+  Box,
   Chip,
+  Avatar,
   Button,
   CircularProgress,
-  Alert,
   LinearProgress,
-  IconButton,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -24,8 +23,9 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Tooltip,
   Snackbar,
+  Tooltip,
+  IconButton,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -42,7 +42,6 @@ import {
   ContentCopy as ContentCopyIcon,
   ShoppingCart as ShoppingCartIcon,
   AccountTree as NetworkIcon,
-
 } from '@mui/icons-material';
 import { EnhancedCryptoAnalysis, enhancedAIAnalysis } from '../services/enhancedAIAnalysis';
 import { useTheme } from '../contexts/ThemeContext';
@@ -53,7 +52,7 @@ import {
   getPercentageColor,
 } from '../utils/formatters';
 import { copyToClipboard, formatContractAddress } from '../utils/dexUtils';
-import { coinGeckoApi, apiService } from '../services/api';
+import { apiService } from '../services/api';
 import { Coin } from '../types';
 
 interface EnhancedAIRecommendationsProps {
@@ -63,7 +62,7 @@ interface EnhancedAIRecommendationsProps {
 const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ onCoinClick }) => {
   const { theme } = useTheme();
   const [recommendations, setRecommendations] = useState<EnhancedCryptoAnalysis[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -72,14 +71,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  
-  // Filter state
   const [signalFilter, setSignalFilter] = useState<'ALL' | 'LONG' | 'SHORT' | 'NEUTRAL'>('ALL');
-  
-  // MEXC filter state
-  const [showMEXCOnly, setShowMEXCOnly] = useState(true);
-  const [mexcCoins, setMexcCoins] = useState<Coin[]>([]);
-  const [loadingMEXC, setLoadingMEXC] = useState(false);
   
   // Real-time prices state
   const [useRealTimePrices, setUseRealTimePrices] = useState(true);
@@ -178,36 +170,6 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     setSignalFilter(filter);
   };
 
-  const fetchMEXCCoins = useCallback(async () => {
-    try {
-      setLoadingMEXC(true);
-      console.log('Fetching MEXC coins...');
-      const mexcData = await coinGeckoApi.getMEXCCoins(200); // Get more coins for better filtering
-      setMexcCoins(mexcData);
-      console.log(`Loaded ${mexcData.length} MEXC coins`);
-    } catch (err: any) {
-      console.error('Error fetching MEXC coins:', err);
-      // Don't show error to user, just log it
-    } finally {
-      setLoadingMEXC(false);
-    }
-  }, []);
-
-  // Auto-fetch MEXC coins on initial load since filter is enabled by default
-  useEffect(() => {
-    if (showMEXCOnly && mexcCoins.length === 0) {
-      fetchMEXCCoins();
-    }
-  }, [showMEXCOnly, mexcCoins.length, fetchMEXCCoins]);
-
-  const handleMEXCFilter = async () => {
-    if (!showMEXCOnly && mexcCoins.length === 0) {
-      // First time clicking, fetch MEXC coins
-      await fetchMEXCCoins();
-    }
-    setShowMEXCOnly(!showMEXCOnly);
-  };
-
   const handleRealTimePricesToggle = async () => {
     setLoadingRealTime(true);
     setUseRealTimePrices(!useRealTimePrices);
@@ -233,18 +195,13 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     setTimeout(() => setLoadingRealTime(false), 1000);
   };
 
-  // Filter recommendations based on selected signal type and MEXC filter
+  // Filter recommendations based on selected signal type
   const filteredRecommendations = (() => {
     let filtered = signalFilter === 'ALL' 
       ? recommendations 
       : recommendations.filter(r => r.recommendation === signalFilter);
     
-    if (showMEXCOnly && mexcCoins.length > 0) {
-      // Filter to show only MEXC coins
-      const mexcCoinIds = new Set(mexcCoins.map(coin => coin.id));
-      filtered = filtered.filter(r => mexcCoinIds.has(r.coin.id));
-    }
-    
+    // Since we now use MEXC as primary source, all recommendations should already be MEXC coins
     return filtered;
   })();
 
@@ -386,41 +343,30 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
               </Button>
             </Tooltip>
 
-            {/* MEXC Filter Button */}
-            <Tooltip title={showMEXCOnly ? 'Show all coins' : 'Show only MEXC coins'}>
+            {/* MEXC Status Indicator */}
+            <Tooltip title="All recommendations are sourced from MEXC USDT trading pairs">
               <Button
-                variant={showMEXCOnly ? "contained" : "outlined"}
+                variant="contained"
                 color="primary"
-                onClick={handleMEXCFilter}
-                disabled={loadingMEXC}
-                startIcon={loadingMEXC ? <CircularProgress size={16} /> : null}
+                disabled
                 sx={{
                   borderRadius: 2,
                   textTransform: 'none',
                   fontWeight: 600,
                   minWidth: 120,
                   height: 40,
-                  background: showMEXCOnly 
-                    ? 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)'
-                    : 'transparent',
-                  border: showMEXCOnly ? 'none' : `2px solid ${theme.palette.primary.main}`,
-                  color: showMEXCOnly ? 'white' : theme.palette.primary.main,
-                  '&:hover': {
-                    background: showMEXCOnly 
-                      ? 'linear-gradient(45deg, #1976D2 30%, #1CB5E0 90%)'
-                      : `${theme.palette.primary.main}15`,
-                    transform: 'translateY(-1px)',
-                    boxShadow: '0 4px 8px rgba(33, 150, 243, 0.3)',
+                  background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                  color: 'white',
+                  opacity: 0.9,
+                  cursor: 'default',
+                  '&.Mui-disabled': {
+                    color: 'white',
+                    opacity: 0.9,
                   },
-                  transition: 'all 0.2s ease-in-out',
                 }}
               >
-                {loadingMEXC ? 'Loading...' : (
-                  <>
-                    <span style={{ fontWeight: 'bold' }}>MEXC</span>
-                    <span style={{ marginLeft: 4, fontSize: '0.85em' }}>Only</span>
-                  </>
-                )}
+                <span style={{ fontWeight: 'bold' }}>MEXC</span>
+                <span style={{ marginLeft: 4, fontSize: '0.85em' }}>Source</span>
               </Button>
             </Tooltip>
             
@@ -447,15 +393,13 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
               />
             )}
             
-            {showMEXCOnly && mexcCoins.length > 0 && (
-              <Chip
-                label={`Showing ${filteredRecommendations.length} MEXC coins`}
-                color="primary"
-                variant="filled"
-                size="small"
-                sx={{ fontWeight: 600 }}
-              />
-            )}
+            <Chip
+              label={`${filteredRecommendations.length} MEXC coins analyzed`}
+              color="primary"
+              variant="filled"
+              size="small"
+              sx={{ fontWeight: 600 }}
+            />
           </Box>
           
           {lastUpdated && (
@@ -587,25 +531,34 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       </Grid>
 
       {/* Filter Status */}
-      {(signalFilter !== 'ALL' || showMEXCOnly) && (
+      {(signalFilter !== 'ALL') && (
         <Box sx={{ mb: 2, p: 2, backgroundColor: `${theme.palette.primary.main}10`, borderRadius: 2 }}>
           <Typography variant="h6" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
-            {signalFilter !== 'ALL' && showMEXCOnly && (
-              <>Showing {filteredRecommendations.length} {signalFilter} Signal{filteredRecommendations.length !== 1 ? 's' : ''} on MEXC</>
+            Showing {filteredRecommendations.length} {signalFilter} Signal{filteredRecommendations.length !== 1 ? 's' : ''}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Click "All Coins" above to see all recommendations
+          </Typography>
+        </Box>
+      )}
+
+      {/* No Results Message */}
+      {filteredRecommendations.length === 0 && !loading && (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            {signalFilter !== 'ALL' && (
+              <>No {signalFilter} signals found</>
             )}
-            {signalFilter !== 'ALL' && !showMEXCOnly && (
-              <>Showing {filteredRecommendations.length} {signalFilter} Signal{filteredRecommendations.length !== 1 ? 's' : ''}</>
-            )}
-            {signalFilter === 'ALL' && showMEXCOnly && (
-              <>Showing {filteredRecommendations.length} coin{filteredRecommendations.length !== 1 ? 's' : ''} available on MEXC</>
+            {signalFilter === 'ALL' && (
+              <>No recommendations available</>
             )}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {signalFilter !== 'ALL' && (
-              <>Click "All Coins" above to see all recommendations{showMEXCOnly ? ' or remove MEXC filter' : ''}</>
+              <>Click "All Coins" above to see all recommendations</>
             )}
-            {signalFilter === 'ALL' && showMEXCOnly && (
-              <>Click "MEXC Only" button to remove filter and see all recommendations</>
+            {signalFilter === 'ALL' && (
+              <>All recommendations are sourced from MEXC USDT trading pairs. Try refreshing the analysis.</>
             )}
           </Typography>
         </Box>
