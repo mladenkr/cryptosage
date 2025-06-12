@@ -349,9 +349,11 @@ export class EnhancedDataSources {
     // No market cap requirements - allow all coins regardless of market cap
     // This removes the biggest filter that was blocking coins
     
-    // Only filter out obvious stablecoins by symbol (very specific list)
+    // Only filter out obvious stablecoins by symbol (comprehensive list)
     const knownStablecoins = [
-      'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp'
+      'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp',
+      'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1', 'pyusd', 'usdm',
+      'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh'
     ];
     
     const symbol = coin.symbol.toLowerCase();
@@ -401,7 +403,7 @@ export class EnhancedDataSources {
         const symbol = coin.symbol.toLowerCase();
         
         // Only exclude the most obvious stablecoins
-        if (!['usdt', 'usdc', 'busd', 'dai'].includes(symbol)) {
+        if (!['usdt', 'usdc', 'busd', 'dai', 'fdusd', 'usd1', 'usdt0', 'usdc0', 'pyusd', 'usdm'].includes(symbol)) {
           additionalCoins.push(coin);
           console.log(`➕ Added ${coin.symbol.toUpperCase()} (volume: $${coin.total_volume.toLocaleString()})`);
         }

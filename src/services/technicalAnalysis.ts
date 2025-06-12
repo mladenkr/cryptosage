@@ -220,7 +220,9 @@ export class CryptoAnalyzer {
       'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
       'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
       'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
-      'paxg', 'xaut', 'dgld', 'pmgt', 'cache'
+      'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'fdusd', 'usd1', 'usdt0',
+      'usdc0', 'usdt1', 'usdc1', 'pyusd', 'usdm', 'usde', 'gho', 'crvusd',
+      'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh'
     ];
     
     // Stablecoin name patterns

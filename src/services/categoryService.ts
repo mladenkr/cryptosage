@@ -71,7 +71,9 @@ export class CategoryService {
       'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
       'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
       'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
-      'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds'
+      'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds',
+      'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1', 'pyusd', 'usdm',
+      'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh'
     ];
     
     // Stablecoin name patterns

@@ -355,7 +355,9 @@ class MEXCApiService {
           'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
           'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
           'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds',
-          'usdj', 'usdn', 'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax'
+          'usdj', 'usdn', 'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1',
+          'pyusd', 'usdm', 'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy',
+          'usdr', 'usdb', 'usdh', 'usdk', 'usdq', 'usdt', 'usdc', 'busd', 'dai'
         ];
         
         // Check if it's a stablecoin
@@ -368,6 +370,12 @@ class MEXCApiService {
         const stablecoinPatterns = ['usd', 'dollar', 'stable', 'peg'];
         if (stablecoinPatterns.some(pattern => baseSymbol.includes(pattern))) {
           console.log(`🚫 Filtered out potential stablecoin by pattern: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Filter stablecoins with numeric suffixes (USD1, USDT0, etc.)
+        if (/^usd[tc]?\d+$/i.test(baseSymbol) || /^[a-z]*usd[a-z]*\d*$/i.test(baseSymbol)) {
+          console.log(`🚫 Filtered out numeric stablecoin variant: ${baseSymbol.toUpperCase()}`);
           return false;
         }
         
