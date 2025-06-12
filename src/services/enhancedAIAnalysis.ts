@@ -422,17 +422,17 @@ export class EnhancedAIAnalysis {
         }
       }
       
-      // Sort by price prediction difference as the main factor (absolute value)
+      // Sort by price prediction magnitude as the main factor (absolute value)
       const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary sort: Absolute price prediction difference (bigger moves = higher priority)
+        // Primary sort: Absolute price prediction magnitude (bigger moves = higher priority)
         const aPredictionAbs = Math.abs(a.predictions['24h']);
         const bPredictionAbs = Math.abs(b.predictions['24h']);
         const predictionDiff = bPredictionAbs - aPredictionAbs;
-        if (Math.abs(predictionDiff) > 0.5) return predictionDiff;
+        if (Math.abs(predictionDiff) > 0.1) return predictionDiff;
         
-        // Secondary sort: AI Score for coins with similar prediction magnitude
-        const scoreDiff = b.overallScore - a.overallScore;
-        if (Math.abs(scoreDiff) > 2) return scoreDiff;
+        // Secondary sort: Confidence for coins with similar prediction magnitude
+        const confidenceDiff = b.confidence - a.confidence;
+        if (Math.abs(confidenceDiff) > 1) return confidenceDiff;
         
         // Tertiary sort: liquidity score (prefer more liquid assets)
         return b.liquidityScore - a.liquidityScore;
@@ -443,7 +443,7 @@ export class EnhancedAIAnalysis {
       const shortSignals = sortedAnalyses.filter(a => a.recommendation === 'SHORT');
       const neutralSignals = sortedAnalyses.filter(a => a.recommendation === 'NEUTRAL');
       
-      // Create balanced result: prioritize by AI score but ensure representation
+      // Create balanced result: maintain prediction magnitude priority
       const balancedResult: EnhancedCryptoAnalysis[] = [];
       
       // Add top performers (LONG signals) - up to 60% of results
@@ -459,17 +459,26 @@ export class EnhancedAIAnalysis {
       if (remaining > 0) {
         balancedResult.push(...neutralSignals.slice(0, remaining));
       }
-      
-      // Final sort by AI score for display
+
+      // Final result: maintain prediction magnitude priority (don't re-sort by AI score)
       const finalResult = balancedResult
-        .sort((a, b) => b.overallScore - a.overallScore)
+        .sort((a, b) => {
+          // Keep prediction magnitude as primary sort
+          const aPredictionAbs = Math.abs(a.predictions['24h']);
+          const bPredictionAbs = Math.abs(b.predictions['24h']);
+          const predictionDiff = bPredictionAbs - aPredictionAbs;
+          if (Math.abs(predictionDiff) > 0.1) return predictionDiff;
+          
+          // Secondary sort: Confidence
+          return b.confidence - a.confidence;
+        })
         .slice(0, limit);
 
       console.log(`EnhancedAIAnalysis: Successfully analyzed ${sortedAnalyses.length} coins`);
       console.log(`Signal distribution: ${longSignals.length} LONG, ${shortSignals.length} SHORT, ${neutralSignals.length} NEUTRAL`);
       console.log(`Final result: ${finalResult.filter(a => a.recommendation === 'LONG').length} LONG, ${finalResult.filter(a => a.recommendation === 'SHORT').length} SHORT, ${finalResult.filter(a => a.recommendation === 'NEUTRAL').length} NEUTRAL`);
-      console.log('Top 5 predictions:', finalResult.slice(0, 5).map(a => 
-        `${a.coin.symbol}: ${a.predictions['24h'].toFixed(2)}% (Score: ${a.overallScore.toFixed(1)}, ${a.recommendation})`
+      console.log('Top 5 by prediction magnitude:', finalResult.slice(0, 5).map(a => 
+        `${a.coin.symbol}: ${a.predictions['24h'].toFixed(2)}% (Confidence: ${a.confidence.toFixed(1)}%, ${a.recommendation})`
       ));
       
       return finalResult;

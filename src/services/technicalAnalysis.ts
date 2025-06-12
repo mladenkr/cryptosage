@@ -683,19 +683,25 @@ export class CryptoAnalyzer {
         }
       }
 
-      // Sort analyses by predicted 24h change (highest positive change first)
+      // Sort analyses by predicted 24h change magnitude (absolute value)
       const sortedAnalyses = analyses.sort((a, b) => {
-        // Primary sort: predicted 24h change (highest positive change first)
-        const changeDiff = b.predicted24hChange - a.predicted24hChange;
-        if (Math.abs(changeDiff) > 0.1) return changeDiff;
+        // Primary sort: Absolute prediction magnitude (bigger moves = higher priority)
+        const aPredictionAbs = Math.abs(a.predicted24hChange);
+        const bPredictionAbs = Math.abs(b.predicted24hChange);
+        const predictionDiff = bPredictionAbs - aPredictionAbs;
+        if (Math.abs(predictionDiff) > 0.1) return predictionDiff;
         
-        // Secondary sort: overall score (higher is better) for ties
+        // Secondary sort: Confidence for coins with similar prediction magnitude
+        const confidenceDiff = b.confidence - a.confidence;
+        if (Math.abs(confidenceDiff) > 1) return confidenceDiff;
+        
+        // Tertiary sort: overall score (higher is better) for final tiebreaker
         return b.overallScore - a.overallScore;
       });
       
       console.log(`TechnicalAnalysis: Generated ${sortedAnalyses.length} total analyses`);
-      console.log('TechnicalAnalysis: Top 5 by predicted 24h change:', sortedAnalyses.slice(0, 5).map(a => 
-        `${a.coin.symbol}: ${a.predicted24hChange.toFixed(2)}% prediction, Score ${a.overallScore.toFixed(1)} (${a.recommendation})`
+      console.log('TechnicalAnalysis: Top 5 by prediction magnitude:', sortedAnalyses.slice(0, 5).map(a => 
+        `${a.coin.symbol}: ${a.predicted24hChange.toFixed(2)}% prediction, Confidence ${a.confidence.toFixed(1)}% (${a.recommendation})`
       ));
       
       // Return top 10 recommendations
