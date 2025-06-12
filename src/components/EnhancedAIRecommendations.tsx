@@ -25,8 +25,6 @@ import {
   AccordionSummary,
   AccordionDetails,
   Tooltip,
-  Menu,
-  MenuItem,
   Snackbar,
 } from '@mui/material';
 import {
@@ -43,7 +41,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   ContentCopy as ContentCopyIcon,
   ShoppingCart as ShoppingCartIcon,
-  Launch as LaunchIcon,
   AccountTree as NetworkIcon,
 
 } from '@mui/icons-material';
@@ -55,7 +52,9 @@ import {
   formatPercentage,
   getPercentageColor,
 } from '../utils/formatters';
-import { getDEXLinks, getNetworkExplorer, copyToClipboard, formatContractAddress } from '../utils/dexUtils';
+import { copyToClipboard, formatContractAddress } from '../utils/dexUtils';
+import { coinGeckoApi } from '../services/api';
+import { Coin } from '../types';
 
 interface EnhancedAIRecommendationsProps {
   onCoinClick?: (coinId: string) => void;
@@ -71,15 +70,16 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [selectedAnalysis, setSelectedAnalysis] = useState<EnhancedCryptoAnalysis | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
-  
-  // New state for enhanced features
-  const [dexMenuAnchor, setDexMenuAnchor] = useState<null | HTMLElement>(null);
-  const [selectedCoinForDex, setSelectedCoinForDex] = useState<EnhancedCryptoAnalysis | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   
   // Filter state
   const [signalFilter, setSignalFilter] = useState<'ALL' | 'LONG' | 'SHORT' | 'NEUTRAL'>('ALL');
+  
+  // MEXC filter state
+  const [showMEXCOnly, setShowMEXCOnly] = useState(false);
+  const [mexcCoins, setMexcCoins] = useState<Coin[]>([]);
+  const [loadingMEXC, setLoadingMEXC] = useState(false);
 
   const loadRecommendations = useCallback(async (showLoader = false) => {
     try {
@@ -160,17 +160,6 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     setSelectedAnalysis(null);
   };
 
-  const handleDexMenuOpen = (event: React.MouseEvent<HTMLElement>, analysis: EnhancedCryptoAnalysis) => {
-    event.stopPropagation();
-    setDexMenuAnchor(event.currentTarget);
-    setSelectedCoinForDex(analysis);
-  };
-
-  const handleDexMenuClose = () => {
-    setDexMenuAnchor(null);
-    setSelectedCoinForDex(null);
-  };
-
   const handleCopyContract = async (contractAddress: string) => {
     const success = await copyToClipboard(contractAddress);
     setSnackbarMessage(success ? 'Contract address copied!' : 'Failed to copy address');
@@ -185,10 +174,43 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     setSignalFilter(filter);
   };
 
-  // Filter recommendations based on selected signal type
-  const filteredRecommendations = signalFilter === 'ALL' 
-    ? recommendations 
-    : recommendations.filter(r => r.recommendation === signalFilter);
+  const fetchMEXCCoins = async () => {
+    try {
+      setLoadingMEXC(true);
+      console.log('Fetching MEXC coins...');
+      const mexcData = await coinGeckoApi.getMEXCCoins(200); // Get more coins for better filtering
+      setMexcCoins(mexcData);
+      console.log(`Loaded ${mexcData.length} MEXC coins`);
+    } catch (err: any) {
+      console.error('Error fetching MEXC coins:', err);
+      // Don't show error to user, just log it
+    } finally {
+      setLoadingMEXC(false);
+    }
+  };
+
+  const handleMEXCFilter = async () => {
+    if (!showMEXCOnly && mexcCoins.length === 0) {
+      // First time clicking, fetch MEXC coins
+      await fetchMEXCCoins();
+    }
+    setShowMEXCOnly(!showMEXCOnly);
+  };
+
+  // Filter recommendations based on selected signal type and MEXC filter
+  const filteredRecommendations = (() => {
+    let filtered = signalFilter === 'ALL' 
+      ? recommendations 
+      : recommendations.filter(r => r.recommendation === signalFilter);
+    
+    if (showMEXCOnly && mexcCoins.length > 0) {
+      // Filter to show only MEXC coins
+      const mexcCoinIds = new Set(mexcCoins.map(coin => coin.id));
+      filtered = filtered.filter(r => mexcCoinIds.has(r.coin.id));
+    }
+    
+    return filtered;
+  })();
 
   const getRecommendationColor = (recommendation: string) => {
     switch (recommendation) {
@@ -218,7 +240,19 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     }
   };
 
+  // Function to generate MEXC exchange URL for a coin
+  const getMEXCUrl = (symbol: string): string => {
+    // Convert symbol to uppercase and create MEXC trading pair URL
+    const upperSymbol = symbol.toUpperCase();
+    return `https://www.mexc.com/exchange/${upperSymbol}_USDT`;
+  };
 
+  // Handle direct MEXC buy button click
+  const handleMEXCBuy = (event: React.MouseEvent, analysis: EnhancedCryptoAnalysis) => {
+    event.stopPropagation();
+    const mexcUrl = getMEXCUrl(analysis.coin.symbol);
+    window.open(mexcUrl, '_blank', 'noopener,noreferrer');
+  };
 
   if (loading) {
     return (
@@ -277,14 +311,68 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'right' }}>
-          <Button
-            variant="outlined"
-            onClick={() => loadRecommendations(true)}
-            disabled={loading || backgroundLoading}
-            startIcon={<PsychologyIcon />}
-          >
-            {backgroundLoading ? 'Updating...' : 'Refresh Analysis'}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'flex-end' }}>
+            {/* MEXC Filter Button */}
+            <Tooltip title={showMEXCOnly ? 'Remove MEXC filter' : 'Show only MEXC coins'}>
+              <Button
+                variant={showMEXCOnly ? "contained" : "outlined"}
+                color="primary"
+                onClick={handleMEXCFilter}
+                disabled={loadingMEXC}
+                startIcon={loadingMEXC ? <CircularProgress size={16} /> : null}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  minWidth: 120,
+                  height: 40,
+                  background: showMEXCOnly 
+                    ? 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)'
+                    : 'transparent',
+                  border: showMEXCOnly ? 'none' : `2px solid ${theme.palette.primary.main}`,
+                  color: showMEXCOnly ? 'white' : theme.palette.primary.main,
+                  '&:hover': {
+                    background: showMEXCOnly 
+                      ? 'linear-gradient(45deg, #1976D2 30%, #1CB5E0 90%)'
+                      : `${theme.palette.primary.main}15`,
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 8px rgba(33, 150, 243, 0.3)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                {loadingMEXC ? 'Loading...' : (
+                  <>
+                    <span style={{ fontWeight: 'bold' }}>MEXC</span>
+                    <span style={{ marginLeft: 4, fontSize: '0.85em' }}>Only</span>
+                  </>
+                )}
+              </Button>
+            </Tooltip>
+            
+            {/* Refresh Analysis Button */}
+            <Button
+              variant="outlined"
+              onClick={() => loadRecommendations(true)}
+              disabled={loading || backgroundLoading}
+              startIcon={<PsychologyIcon />}
+            >
+              {backgroundLoading ? 'Updating...' : 'Refresh Analysis'}
+            </Button>
+          </Box>
+          
+          {/* Active Filter Indicator */}
+          {showMEXCOnly && mexcCoins.length > 0 && (
+            <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+              <Chip
+                label={`${filteredRecommendations.length} coins available on MEXC`}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+            </Box>
+          )}
+          
           {lastUpdated && (
             <Typography variant="caption" display="block" sx={{ mt: 1 }}>
               Updated: {lastUpdated.toLocaleTimeString()}
@@ -414,13 +502,26 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       </Grid>
 
       {/* Filter Status */}
-      {signalFilter !== 'ALL' && (
-        <Box sx={{ mb: 2, p: 2, backgroundColor: `${getRecommendationColor(signalFilter)}10`, borderRadius: 2 }}>
-          <Typography variant="h6" sx={{ color: getRecommendationColor(signalFilter), fontWeight: 600 }}>
-            Showing {filteredRecommendations.length} {signalFilter} Signal{filteredRecommendations.length !== 1 ? 's' : ''}
+      {(signalFilter !== 'ALL' || showMEXCOnly) && (
+        <Box sx={{ mb: 2, p: 2, backgroundColor: `${theme.palette.primary.main}10`, borderRadius: 2 }}>
+          <Typography variant="h6" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
+            {signalFilter !== 'ALL' && showMEXCOnly && (
+              <>Showing {filteredRecommendations.length} {signalFilter} Signal{filteredRecommendations.length !== 1 ? 's' : ''} on MEXC</>
+            )}
+            {signalFilter !== 'ALL' && !showMEXCOnly && (
+              <>Showing {filteredRecommendations.length} {signalFilter} Signal{filteredRecommendations.length !== 1 ? 's' : ''}</>
+            )}
+            {signalFilter === 'ALL' && showMEXCOnly && (
+              <>Showing {filteredRecommendations.length} coin{filteredRecommendations.length !== 1 ? 's' : ''} available on MEXC</>
+            )}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Click "All Coins" above to see all recommendations
+            {signalFilter !== 'ALL' && (
+              <>Click "All Coins" above to see all recommendations{showMEXCOnly ? ' or remove MEXC filter' : ''}</>
+            )}
+            {signalFilter === 'ALL' && showMEXCOnly && (
+              <>Click "MEXC Only" button to remove filter and see all recommendations</>
+            )}
           </Typography>
         </Box>
       )}
@@ -695,18 +796,29 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   />
                 </Box>
 
-                {/* DEX Buy Button */}
-                {(analysis.coin.contract_address || analysis.coin.symbol) && (
+                {/* MEXC Buy Button */}
+                {analysis.coin.symbol && (
                   <Box sx={{ mb: 2 }}>
                     <Button
                       fullWidth
                       variant="outlined"
                       size="small"
                       startIcon={<ShoppingCartIcon />}
-                      onClick={(e) => handleDexMenuOpen(e, analysis)}
-                      sx={{ fontSize: '0.75rem', py: 0.5 }}
+                      onClick={(e) => handleMEXCBuy(e, analysis)}
+                      sx={{ 
+                        fontSize: '0.75rem', 
+                        py: 0.5,
+                        borderColor: '#2196F3',
+                        color: '#2196F3',
+                        '&:hover': {
+                          borderColor: '#1976D2',
+                          backgroundColor: '#2196F315',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease-in-out',
+                      }}
                     >
-                      Buy on DEX
+                      Buy on MEXC
                     </Button>
                   </Box>
                 )}
@@ -984,55 +1096,6 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
         )}
       </Dialog>
     </Box>
-
-    {/* DEX Menu */}
-    <Menu
-      anchorEl={dexMenuAnchor}
-      open={Boolean(dexMenuAnchor)}
-      onClose={handleDexMenuClose}
-      PaperProps={{
-        sx: { minWidth: 200 }
-      }}
-    >
-      {selectedCoinForDex && getDEXLinks(
-        selectedCoinForDex.coin.contract_address,
-        selectedCoinForDex.coin.network,
-        selectedCoinForDex.coin.symbol
-      ).map((dexLink, index) => (
-        <MenuItem
-          key={index}
-          onClick={() => {
-            window.open(dexLink.url, '_blank', 'noopener,noreferrer');
-            handleDexMenuClose();
-          }}
-        >
-          <LaunchIcon sx={{ mr: 1, fontSize: '1rem' }} />
-          {dexLink.name}
-        </MenuItem>
-      ))}
-      
-      {/* Network Explorer Link */}
-      {selectedCoinForDex?.coin.contract_address && selectedCoinForDex?.coin.network && (
-        <>
-          <MenuItem divider />
-          <MenuItem
-            onClick={() => {
-              const explorerUrl = getNetworkExplorer(
-                selectedCoinForDex.coin.contract_address!,
-                selectedCoinForDex.coin.network
-              );
-              if (explorerUrl) {
-                window.open(explorerUrl, '_blank', 'noopener,noreferrer');
-              }
-              handleDexMenuClose();
-            }}
-          >
-            <InfoIcon sx={{ mr: 1, fontSize: '1rem' }} />
-            View on Explorer
-          </MenuItem>
-        </>
-      )}
-    </Menu>
 
     {/* Snackbar for notifications */}
     <Snackbar

@@ -672,6 +672,160 @@ export const coinGeckoApi = {
     
     throw new Error(`OHLC data for ${id} is currently unavailable. Last error: ${lastError?.message || 'Unknown error'}`);
   },
+
+  // Get exchange data by ID
+  getExchangeData: async (exchangeId: string): Promise<any> => {
+    try {
+      const response = await coingeckoApi.get(`/exchanges/${exchangeId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Exchange data for ${exchangeId} is currently unavailable`);
+    }
+  },
+
+  // Get exchange tickers by ID
+  getExchangeTickers: async (exchangeId: string, page: number = 1): Promise<any> => {
+    try {
+      const response = await coingeckoApi.get(`/exchanges/${exchangeId}/tickers`, {
+        params: {
+          page,
+          order: 'volume_desc'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Exchange tickers for ${exchangeId} are currently unavailable`);
+    }
+  },
+
+  // Get all exchanges list
+  getExchangesList: async (): Promise<any[]> => {
+    try {
+      const response = await coingeckoApi.get('/exchanges/list');
+      return response.data;
+    } catch (error) {
+      throw new Error('Exchanges list is currently unavailable');
+    }
+  },
+
+  // Get coins available on MEXC exchange
+  getMEXCCoins: async (limit: number = 100): Promise<Coin[]> => {
+    const cacheKey = `mexc_coins_${limit}`;
+    
+    // Check cache first
+    const cached = cacheService.getCachedMarketData(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      console.log(`Using cached MEXC coins: ${cached.length} coins`);
+      return cached;
+    }
+
+    try {
+      console.log('Fetching MEXC exchange tickers...');
+      
+      // First, try to get MEXC exchange info to verify it exists
+      let mexcExchangeId = 'mexc_global';
+      
+      try {
+        await coinGeckoApi.getExchangeData(mexcExchangeId);
+        console.log(`MEXC exchange found with ID: ${mexcExchangeId}`);
+      } catch (exchangeError) {
+        console.warn(`Exchange ID ${mexcExchangeId} not found, trying alternative IDs...`);
+        
+        // Try alternative MEXC exchange IDs
+        const alternativeIds = ['mexc', 'mxc', 'mexc_global', 'mexc_exchange'];
+        let foundExchange = false;
+        
+        for (const altId of alternativeIds) {
+          try {
+            await coinGeckoApi.getExchangeData(altId);
+            mexcExchangeId = altId;
+            foundExchange = true;
+            console.log(`Found MEXC exchange with ID: ${altId}`);
+            break;
+          } catch (altError) {
+            continue;
+          }
+        }
+        
+        if (!foundExchange) {
+          throw new Error('MEXC exchange not found with any known ID');
+        }
+      }
+      
+      // Get MEXC exchange tickers
+      const mexcTickers = await coinGeckoApi.getExchangeTickers(mexcExchangeId, 1);
+      
+      if (!mexcTickers.tickers || mexcTickers.tickers.length === 0) {
+        console.warn('No MEXC tickers found');
+        return [];
+      }
+
+      // Extract unique coin IDs from MEXC tickers
+      const mexcCoinIds = new Set<string>();
+      mexcTickers.tickers.forEach((ticker: any) => {
+        if (ticker.coin_id) {
+          mexcCoinIds.add(ticker.coin_id);
+        }
+      });
+
+      console.log(`Found ${mexcCoinIds.size} unique coins on MEXC`);
+
+      if (mexcCoinIds.size === 0) {
+        console.warn('No coin IDs found in MEXC tickers');
+        return [];
+      }
+
+      // Convert Set to Array and limit the number of coins
+      const coinIdsArray = Array.from(mexcCoinIds).slice(0, limit);
+      
+      // Get market data for these coins
+      const coinsData = await coinGeckoApi.getCoins('usd', 'market_cap_desc', Math.max(limit, 200), 1, false, '24h');
+      
+      // Filter coins to only include those available on MEXC
+      const mexcCoins = coinsData.filter(coin => coinIdsArray.includes(coin.id));
+      
+      console.log(`Filtered to ${mexcCoins.length} coins available on MEXC`);
+      
+      // If we have coins, cache them
+      if (mexcCoins.length > 0) {
+        cacheService.cacheMarketData(cacheKey, mexcCoins);
+      }
+      
+      return mexcCoins;
+    } catch (error: any) {
+      console.error('Error fetching MEXC coins:', error);
+      
+      // Fallback: try to get a smaller set of popular coins that are likely on MEXC
+      try {
+        console.log('Falling back to popular coins likely on MEXC...');
+        const popularCoins = await coinGeckoApi.getCoins('usd', 'market_cap_desc', 50, 1);
+        
+        // Filter to major coins that are commonly available on most exchanges
+        const majorCoins = popularCoins.filter(coin => {
+          const symbol = coin.symbol.toLowerCase();
+          const majorSymbols = [
+            'btc', 'eth', 'bnb', 'ada', 'sol', 'xrp', 'dot', 'doge', 'avax', 'matic',
+            'link', 'ltc', 'bch', 'xlm', 'vet', 'fil', 'trx', 'etc', 'atom', 'near',
+            'algo', 'mana', 'sand', 'gala', 'axs', 'chz', 'ens', 'lrc', 'cro', 'ftm'
+          ];
+          return majorSymbols.includes(symbol);
+        });
+        
+        // Cache a smaller set as fallback
+        const fallbackCoins = majorCoins.slice(0, Math.min(20, limit));
+        
+        if (fallbackCoins.length > 0) {
+          cacheService.cacheMarketData(cacheKey, fallbackCoins);
+        }
+        
+        console.log(`Fallback returned ${fallbackCoins.length} major coins`);
+        return fallbackCoins;
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        return [];
+      }
+    }
+  },
 };
 
 // Unified API service for backward compatibility

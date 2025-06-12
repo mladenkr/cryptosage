@@ -14,6 +14,8 @@ import {
   MenuItem,
   Button,
   useTheme,
+  Chip,
+  Tooltip,
 } from '@mui/material';
 import { SelectChangeEvent } from '@mui/material/Select';
 import MarketOverview from './MarketOverview';
@@ -32,6 +34,9 @@ const MarketPage: React.FC = () => {
   const [sortBy, setSortBy] = useState('market_cap_desc');
   const [searchQuery] = useState('');
   const [filteredCoins, setFilteredCoins] = useState<Coin[]>([]);
+  const [showMEXCOnly, setShowMEXCOnly] = useState(false);
+  const [mexcCoins, setMexcCoins] = useState<Coin[]>([]);
+  const [loadingMEXC, setLoadingMEXC] = useState(false);
 
   const coinsPerPage = 20;
 
@@ -40,18 +45,25 @@ const MarketPage: React.FC = () => {
   }, [page, sortBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    // Filter coins based on search query
+    // Filter coins based on search query and MEXC filter
+    let filtered = coins;
+    
+    if (showMEXCOnly && mexcCoins.length > 0) {
+      // Filter to show only MEXC coins
+      const mexcCoinIds = new Set(mexcCoins.map(coin => coin.id));
+      filtered = coins.filter(coin => mexcCoinIds.has(coin.id));
+    }
+    
     if (searchQuery.trim()) {
-      const filtered = coins.filter(
+      filtered = filtered.filter(
         (coin) =>
           coin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           coin.symbol.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setFilteredCoins(filtered);
-    } else {
-      setFilteredCoins(coins);
     }
-  }, [coins, searchQuery]);
+    
+    setFilteredCoins(filtered);
+  }, [coins, searchQuery, showMEXCOnly, mexcCoins]);
 
   const fetchData = async () => {
     try {
@@ -84,6 +96,30 @@ const MarketPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchMEXCCoins = async () => {
+    try {
+      setLoadingMEXC(true);
+      console.log('Fetching MEXC coins...');
+      const mexcData = await coinGeckoApi.getMEXCCoins(200); // Get more coins for better filtering
+      setMexcCoins(mexcData);
+      console.log(`Loaded ${mexcData.length} MEXC coins`);
+    } catch (err: any) {
+      console.error('Error fetching MEXC coins:', err);
+      // Don't show error to user, just log it
+    } finally {
+      setLoadingMEXC(false);
+    }
+  };
+
+  const handleMEXCFilter = async () => {
+    if (!showMEXCOnly && mexcCoins.length === 0) {
+      // First time clicking, fetch MEXC coins
+      await fetchMEXCCoins();
+    }
+    setShowMEXCOnly(!showMEXCOnly);
+    setPage(1); // Reset to first page when filter changes
   };
 
   // Removed unused handleSearch function
@@ -139,17 +175,67 @@ const MarketPage: React.FC = () => {
       <MarketOverview globalData={globalData} loading={loading} />
 
       {/* Controls */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography
-          variant="h5"
-          component="h2"
-          sx={{
-            fontWeight: 600,
-            color: theme.palette.text.primary,
-          }}
-        >
-          {searchQuery ? `Search Results for "${searchQuery}"` : 'Top Cryptocurrencies'}
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <Typography
+            variant="h5"
+            component="h2"
+            sx={{
+              fontWeight: 600,
+              color: theme.palette.text.primary,
+            }}
+          >
+            {searchQuery ? `Search Results for "${searchQuery}"` : 'Top Cryptocurrencies'}
+          </Typography>
+          
+          {/* MEXC Filter Button */}
+          <Tooltip title={showMEXCOnly ? 'Remove MEXC filter' : 'Show only MEXC coins'}>
+            <Button
+              variant={showMEXCOnly ? "contained" : "outlined"}
+              color="primary"
+              onClick={handleMEXCFilter}
+              disabled={loadingMEXC}
+              startIcon={loadingMEXC ? <CircularProgress size={16} /> : null}
+              sx={{
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                minWidth: 120,
+                height: 40,
+                background: showMEXCOnly 
+                  ? 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)'
+                  : 'transparent',
+                border: showMEXCOnly ? 'none' : `2px solid ${theme.palette.primary.main}`,
+                color: showMEXCOnly ? 'white' : theme.palette.primary.main,
+                '&:hover': {
+                  background: showMEXCOnly 
+                    ? 'linear-gradient(45deg, #1976D2 30%, #1CB5E0 90%)'
+                    : `${theme.palette.primary.main}15`,
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 4px 8px rgba(33, 150, 243, 0.3)',
+                },
+                transition: 'all 0.2s ease-in-out',
+              }}
+            >
+              {loadingMEXC ? 'Loading...' : (
+                <>
+                  <span style={{ fontWeight: 'bold' }}>MEXC</span>
+                  <span style={{ marginLeft: 4, fontSize: '0.85em' }}>Only</span>
+                </>
+              )}
+            </Button>
+          </Tooltip>
+          
+          {/* Active Filter Indicator */}
+          {showMEXCOnly && mexcCoins.length > 0 && (
+            <Chip
+              label={`${filteredCoins.length} coins available on MEXC`}
+              color="primary"
+              variant="outlined"
+              size="small"
+            />
+          )}
+        </Box>
         
         {!searchQuery && (
           <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -191,7 +277,7 @@ const MarketPage: React.FC = () => {
           </Grid>
 
           {/* Pagination */}
-          {!searchQuery && filteredCoins.length > 0 && (
+          {!searchQuery && filteredCoins.length > 0 && !showMEXCOnly && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
               <Pagination
                 count={Math.ceil(1000 / coinsPerPage)} // CoinGecko has ~1000 coins in free tier
@@ -206,13 +292,16 @@ const MarketPage: React.FC = () => {
           )}
 
           {/* No Results */}
-          {searchQuery && filteredCoins.length === 0 && (
+          {((searchQuery && filteredCoins.length === 0) || (showMEXCOnly && filteredCoins.length === 0)) && (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <Typography variant="h6" color="text.secondary" gutterBottom>
-                No cryptocurrencies found
+                {showMEXCOnly ? 'No coins found on MEXC exchange' : 'No cryptocurrencies found'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Try adjusting your search terms
+                {showMEXCOnly 
+                  ? 'Try removing the MEXC filter or check back later' 
+                  : 'Try adjusting your search terms'
+                }
               </Typography>
             </Box>
           )}
