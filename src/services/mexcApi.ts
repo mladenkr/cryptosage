@@ -56,9 +56,9 @@ class MEXCApiService {
   // Create API request with error handling
   private async makeRequest<T>(endpoint: string): Promise<T> {
     try {
-      // Add timestamp to prevent browser caching
+      // Add timestamp and version to prevent browser caching
       const separator = endpoint.includes('?') ? '&' : '?';
-      const cacheBuster = `${separator}_t=${Date.now()}`;
+      const cacheBuster = `${separator}_t=${Date.now()}&_v=${Math.random()}&_cb=${Date.now()}`;
       const url = `${MEXC_BASE_URL}${endpoint}${cacheBuster}`;
       
       const response = await fetch(url, {

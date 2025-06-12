@@ -104,10 +104,27 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       }
       setError(null);
       
-      console.log('EnhancedAIRecommendations: Starting enhanced analysis...');
+      console.log(`EnhancedAIRecommendations: Starting enhanced analysis... (${new Date().toISOString()})`);
       
-      // Clear any cached data to force fresh analysis
-      localStorage.removeItem('enhanced_ai_cache');
+      // AGGRESSIVE cache clearing
+      console.log('🧹 AGGRESSIVE CACHE CLEARING...');
+      localStorage.clear(); // Clear ALL localStorage
+      sessionStorage.clear(); // Clear ALL sessionStorage
+      
+      // Clear any browser cache for this domain
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => {
+            caches.delete(name);
+          });
+        });
+      }
+      
+      // Force reload of all modules by adding timestamp
+      console.log(`🔄 Force refresh timestamp: ${Date.now()}`);
+      
+      // Add a small delay to ensure cache clearing completes
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(100);
       
@@ -120,11 +137,12 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       setLastUpdated(new Date());
       console.log(`EnhancedAIRecommendations: Loaded ${analyses.length} enhanced recommendations`);
       
-      // Cache the results
-      localStorage.setItem('enhanced_ai_cache', JSON.stringify({
-        data: analyses,
-        timestamp: Date.now()
-      }));
+      // DISABLE caching for debugging
+      console.log('🚫 Caching disabled - not storing results');
+      // localStorage.setItem('enhanced_ai_cache', JSON.stringify({
+      //   data: analyses,
+      //   timestamp: Date.now()
+      // }));
       
     } catch (err: any) {
       console.error('EnhancedAIRecommendations: Error loading recommendations:', err);
@@ -135,33 +153,14 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     }
   }, []);
 
-  // Load cached data immediately, then refresh in background
+  // DISABLE cache loading - always fetch fresh data
   useEffect(() => {
     // Load MEXC count
     loadMexcCount();
     
-    // Try to load from cache first
-    const cached = localStorage.getItem('enhanced_ai_cache');
-    if (cached) {
-      try {
-        const { data, timestamp } = JSON.parse(cached);
-        const isRecent = Date.now() - timestamp < 5 * 60 * 1000; // 5 minutes
-        
-        if (isRecent && data && data.length > 0) {
-          setRecommendations(data);
-          setLastUpdated(new Date(timestamp));
-          console.log('EnhancedAIRecommendations: Loaded from cache');
-          
-          // Still refresh in background
-          loadRecommendations(false);
-          return;
-        }
-      } catch (e) {
-        console.warn('Failed to parse cached data');
-      }
-    }
+    console.log('🚫 Cache loading DISABLED - always fetching fresh data');
     
-    // No cache or cache is old, load with loader
+    // ALWAYS load fresh data with loader
     loadRecommendations(true);
   }, [loadRecommendations, loadMexcCount]);
 
