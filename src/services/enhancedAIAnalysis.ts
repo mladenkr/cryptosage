@@ -37,8 +37,8 @@ export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
 }
 
 export class EnhancedAIAnalysis {
-  private readonly BATCH_SIZE = 50; // Process coins in larger batches
-  private readonly MAX_COINS_TO_ANALYZE = 1000; // Analyze up to 1000 coins (effectively infinite for most use cases)
+  private readonly BATCH_SIZE = 100; // Process coins in larger batches for better performance
+  private readonly MAX_COINS_TO_ANALYZE = 2500; // Analyze up to 2500 coins to cover most MEXC pairs
   
   // Advanced technical analysis with multiple indicators
   private calculateAdvancedTechnicalScore(coin: EnhancedCoinData): number {
@@ -61,8 +61,18 @@ export class EnhancedAIAnalysis {
     if (momentum30d > 20) score += 8;
     else if (momentum30d < -20) score -= 8;
     
-    // Volume analysis
+    // Volume analysis - Enhanced to prioritize high volume coins
     const volumeToMarketCap = coin.total_volume / coin.market_cap;
+    const absoluteVolume = coin.total_volume;
+    
+    // Absolute volume scoring (prioritize high volume coins)
+    if (absoluteVolume > 100000000) score += 25; // $100M+ daily volume
+    else if (absoluteVolume > 50000000) score += 20; // $50M+ daily volume
+    else if (absoluteVolume > 20000000) score += 15; // $20M+ daily volume
+    else if (absoluteVolume > 5000000) score += 10; // $5M+ daily volume
+    else if (absoluteVolume < 1000000) score -= 10; // Low volume penalty
+    
+    // Volume to market cap ratio (liquidity)
     if (volumeToMarketCap > 0.15) score += 20; // High liquidity
     else if (volumeToMarketCap > 0.08) score += 12;
     else if (volumeToMarketCap > 0.03) score += 5;

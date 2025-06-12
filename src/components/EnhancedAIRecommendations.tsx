@@ -105,7 +105,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
       setError(null);
       
       console.log('EnhancedAIRecommendations: Starting enhanced analysis...');
-      const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(500);
+      const analyses = await enhancedAIAnalysis.getEnhancedRecommendations(1000);
       
       if (analyses.length === 0) {
         setError('No enhanced recommendations available at this time. Please try again later.');
@@ -277,7 +277,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             Enhanced AI Analysis in Progress
           </Typography>
                             <Typography variant="body2" color="text.secondary">
-            Analyzing {mexcUSDTCount ? `${mexcUSDTCount.toLocaleString()}` : '2,000+'} USDT trading pairs from MEXC Exchange... (Showing top 500 results)
+            Analyzing {mexcUSDTCount ? `${mexcUSDTCount.toLocaleString()}` : '2,000+'} USDT trading pairs from MEXC Exchange... (Showing top 1,000 results)
           </Typography>
           <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />
         </Card>
@@ -316,7 +316,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
             )}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Advanced AI-powered cryptocurrency analysis with multi-source data from 1000+ coins
+            Advanced AI-powered cryptocurrency analysis with multi-source data from 2,000+ coins
             {backgroundLoading && (
               <Typography component="span" sx={{ ml: 1, color: 'primary.main', fontSize: '0.75rem' }}>
                 • Updating in background...

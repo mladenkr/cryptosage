@@ -402,19 +402,38 @@ class MEXCApiService {
         };
       });
 
-      // Sort by volume (highest first) for better ranking
-      mexcCoins.sort((a, b) => b.total_volume - a.total_volume);
+      // Enhanced sorting: Primary by volume, secondary by quote volume for better ranking
+      mexcCoins.sort((a, b) => {
+        // Primary sort: Total volume (USDT volume)
+        const volumeDiff = b.total_volume - a.total_volume;
+        if (Math.abs(volumeDiff) > 1000) { // Significant volume difference
+          return volumeDiff;
+        }
+        
+        // Secondary sort: MEXC quote volume if available
+        const aMexcVolume = a.mexc_data?.volume || 0;
+        const bMexcVolume = b.mexc_data?.volume || 0;
+        return bMexcVolume - aMexcVolume;
+      });
       
-      // Update market cap ranks based on volume
-      mexcCoins.forEach((coin, index) => {
+      // Filter out very low volume coins (less than $10k daily volume)
+      const filteredCoins = mexcCoins.filter(coin => coin.total_volume > 10000);
+      
+      // Update market cap ranks based on volume ranking
+      filteredCoins.forEach((coin, index) => {
         coin.market_cap_rank = index + 1;
       });
+      
+      console.log(`Filtered to ${filteredCoins.length} coins with >$10k daily volume`);
+      console.log('Top 10 by volume:', filteredCoins.slice(0, 10).map(c => 
+        `${c.symbol.toUpperCase()}: $${(c.total_volume / 1000000).toFixed(1)}M`
+      ).join(', '));
 
       // Cache the result
-      cacheService.cacheMarketData(cacheKey, mexcCoins);
+      cacheService.cacheMarketData(cacheKey, filteredCoins);
       
-      console.log(`Successfully fetched ${mexcCoins.length} MEXC USDT trading pairs`);
-      return mexcCoins;
+      console.log(`Successfully fetched ${filteredCoins.length} MEXC USDT trading pairs`);
+      return filteredCoins;
       
     } catch (error) {
       console.error('Failed to fetch all MEXC coins:', error);
