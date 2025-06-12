@@ -7,11 +7,10 @@ import {
   AppBar,
   Container
 } from '@mui/material';
-import { useTheme } from '../contexts/ThemeContext';
+
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
-  const { theme } = useTheme();
 
   return (
     <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, pt: 2, pb: 1 }}>
