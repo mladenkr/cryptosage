@@ -73,7 +73,8 @@ export class CategoryService {
       'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
       'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds',
       'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1', 'pyusd', 'usdm',
-      'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh'
+      'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh',
+      'usdtb', 'susde', 'susds', 'bsc-usd', 'bscusd'
     ];
     
     // Stablecoin name patterns
@@ -87,8 +88,8 @@ export class CategoryService {
     // Wrapped and staked token patterns
     const wrappedPatterns = [
       'wrapped', 'staked', 'liquid staking', 'staking derivative',
-      'weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol',
-      'steth', 'reth', 'cbeth', 'sfrxeth', 'ankr', 'lido'
+      'weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol', 'weeth', 'cbbtc', 'lbtc',
+      'steth', 'reth', 'cbeth', 'sfrxeth', 'ankr', 'lido', 'jitosol', 'meth', 'bnsol', 'rseth', 'wsteth'
     ];
     
     // Check for stablecoin by symbol
@@ -108,6 +109,11 @@ export class CategoryService {
     
     // Check for wrapped tokens by symbol pattern
     if (symbol.startsWith('w') && ['eth', 'btc', 'bnb', 'matic', 'avax', 'ftm', 'sol'].some(token => symbol.includes(token))) {
+      return true;
+    }
+    
+    // Check for BSC and bridge tokens
+    if (symbol.includes('bsc') || symbol.includes('-usd') || name.includes('bsc')) {
       return true;
     }
     

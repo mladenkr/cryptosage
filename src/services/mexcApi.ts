@@ -350,6 +350,7 @@ class MEXCApiService {
         
         // Comprehensive stablecoin list
         const stablecoins = [
+          // Traditional stablecoins
           'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp', 'gusd',
           'husd', 'susd', 'cusd', 'ousd', 'musd', 'dusd', 'yusd', 'rusd', 'nusd',
           'usdn', 'ustc', 'ust', 'vai', 'mim', 'fei', 'tribe', 'rai', 'float',
@@ -357,7 +358,9 @@ class MEXCApiService {
           'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'usdx', 'usdk', 'usds',
           'usdj', 'usdn', 'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1',
           'pyusd', 'usdm', 'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy',
-          'usdr', 'usdb', 'usdh', 'usdk', 'usdq', 'usdt', 'usdc', 'busd', 'dai'
+          'usdr', 'usdb', 'usdh', 'usdq', 'usdtb', 'susde', 'susds',
+          // BSC and other chain stablecoins
+          'bsc-usd', 'bscusd', 'busd'
         ];
         
         // Check if it's a stablecoin
@@ -380,8 +383,13 @@ class MEXCApiService {
         }
         
         // Filter out wrapped tokens and staked tokens
-        const wrappedTokens = ['weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol'];
-        const stakedTokens = ['steth', 'reth', 'cbeth', 'sfrxeth', 'stmatic', 'stsol'];
+        const wrappedTokens = [
+          'weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol', 'weeth', 'cbbtc', 'lbtc'
+        ];
+        const stakedTokens = [
+          'steth', 'reth', 'cbeth', 'sfrxeth', 'stmatic', 'stsol', 'jitosol', 'meth', 
+          'bnsol', 'rseth', 'wsteth'
+        ];
         
         if (wrappedTokens.includes(baseSymbol) || stakedTokens.includes(baseSymbol)) {
           console.log(`🚫 Filtered out wrapped/staked token: ${baseSymbol.toUpperCase()}`);
@@ -394,8 +402,18 @@ class MEXCApiService {
           return false;
         }
         
-        if (baseSymbol.includes('staked') || baseSymbol.includes('liquid')) {
+        // Enhanced staked token patterns
+        if (baseSymbol.includes('staked') || baseSymbol.includes('liquid') || 
+            baseSymbol.includes('jito') || (baseSymbol.includes('sol') && baseSymbol.length <= 6) ||
+            baseSymbol.endsWith('sol') || baseSymbol.startsWith('st') ||
+            baseSymbol.includes('meth') || baseSymbol.includes('seth')) {
           console.log(`🚫 Filtered out staked token by pattern: ${baseSymbol.toUpperCase()}`);
+          return false;
+        }
+        
+        // Filter BSC-related tokens
+        if (baseSymbol.includes('bsc') || baseSymbol.includes('-usd')) {
+          console.log(`🚫 Filtered out BSC/bridge token: ${baseSymbol.toUpperCase()}`);
           return false;
         }
         

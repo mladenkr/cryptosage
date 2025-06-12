@@ -222,7 +222,8 @@ export class CryptoAnalyzer {
       'eurc', 'eurs', 'eurt', 'gbpt', 'jpyc', 'cadc', 'audc', 'nzds',
       'paxg', 'xaut', 'dgld', 'pmgt', 'cache', 'fdusd', 'usd1', 'usdt0',
       'usdc0', 'usdt1', 'usdc1', 'pyusd', 'usdm', 'usde', 'gho', 'crvusd',
-      'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh'
+      'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh', 'usdtb', 'susde', 'susds',
+      'bsc-usd', 'bscusd'
     ];
     
     // Stablecoin name patterns
@@ -250,17 +251,20 @@ export class CryptoAnalyzer {
     // Check for wrapped and staked tokens
     const wrappedPatterns = [
       'wrapped', 'staked', 'liquid staking', 'staking derivative',
-      'weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol',
-      'steth', 'reth', 'cbeth', 'sfrxeth', 'ankr', 'lido'
+      'weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol', 'weeth', 'cbbtc', 'lbtc',
+      'steth', 'reth', 'cbeth', 'sfrxeth', 'ankr', 'lido', 'jitosol', 'meth', 'bnsol', 'rseth', 'wsteth'
     ];
     
     const isWrappedOrStaked = wrappedPatterns.some(pattern => 
       name.includes(pattern) || symbol.includes(pattern)
     ) || (symbol.startsWith('w') && ['eth', 'btc', 'bnb', 'matic', 'avax', 'ftm', 'sol'].some(token => symbol.includes(token)));
 
-    if (isWrappedOrStaked) {
-      console.log(`Excluding wrapped/staked token: ${coin.name} (${coin.symbol})`);
-      return 0; // Wrapped tokens and staked tokens get zero fundamental score
+    // Check for BSC and bridge tokens
+    const isBscOrBridge = symbol.includes('bsc') || symbol.includes('-usd') || name.includes('bsc');
+
+    if (isWrappedOrStaked || isBscOrBridge) {
+      console.log(`Excluding wrapped/staked/bridge token: ${coin.name} (${coin.symbol})`);
+      return 0; // Wrapped tokens, staked tokens, and bridge tokens get zero fundamental score
     }
 
     // Market Cap Rank (lower rank = higher score)

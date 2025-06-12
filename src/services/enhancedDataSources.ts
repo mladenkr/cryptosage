@@ -353,7 +353,8 @@ export class EnhancedDataSources {
     const knownStablecoins = [
       'usdt', 'usdc', 'busd', 'dai', 'tusd', 'frax', 'lusd', 'usdd', 'usdp',
       'fdusd', 'usd1', 'usdt0', 'usdc0', 'usdt1', 'usdc1', 'pyusd', 'usdm',
-      'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh'
+      'usde', 'gho', 'crvusd', 'mkusd', 'usdz', 'usdy', 'usdr', 'usdb', 'usdh',
+      'usdtb', 'susde', 'susds', 'bsc-usd', 'bscusd'
     ];
     
     const symbol = coin.symbol.toLowerCase();
@@ -363,10 +364,18 @@ export class EnhancedDataSources {
       return false;
     }
     
-    // Only filter out obvious wrapped tokens (very specific list)
-    const knownWrappedTokens = ['weth', 'wbtc', 'wbnb'];
-    if (knownWrappedTokens.includes(symbol)) {
-      console.log(`Filtered out ${coin.symbol}: known wrapped token`);
+    // Filter out wrapped and staked tokens
+    const knownWrappedTokens = ['weth', 'wbtc', 'wbnb', 'wmatic', 'wavax', 'wftm', 'wsol', 'weeth', 'cbbtc', 'lbtc'];
+    const knownStakedTokens = ['steth', 'reth', 'cbeth', 'sfrxeth', 'stmatic', 'stsol', 'jitosol', 'meth', 'bnsol', 'rseth', 'wsteth'];
+    
+    if (knownWrappedTokens.includes(symbol) || knownStakedTokens.includes(symbol)) {
+      console.log(`Filtered out ${coin.symbol}: known wrapped/staked token`);
+      return false;
+    }
+    
+    // Filter BSC and bridge tokens
+    if (symbol.includes('bsc') || symbol.includes('-usd')) {
+      console.log(`Filtered out ${coin.symbol}: BSC/bridge token`);
       return false;
     }
     
