@@ -16,16 +16,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Snackbar,
+  Tooltip,
+  IconButton,
   List,
   ListItem,
   ListItemIcon,
   ListItemText,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Snackbar,
-  Tooltip,
-  IconButton,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -38,7 +35,6 @@ import {
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
   Error as ErrorIcon,
-  ExpandMore as ExpandMoreIcon,
   ContentCopy as ContentCopyIcon,
   ShoppingCart as ShoppingCartIcon,
 } from '@mui/icons-material';
@@ -70,7 +66,6 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedAnalysis, setSelectedAnalysis] = useState<EnhancedCryptoAnalysis | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [signalFilter, setSignalFilter] = useState<'ALL' | 'LONG' | 'SHORT'>('ALL');
@@ -82,6 +77,9 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
   // MEXC count state
   const [mexcUSDTCount, setMexcUSDTCount] = useState<number | null>(null);
   const [loadingMexcCount, setLoadingMexcCount] = useState(false);
+
+  const [advancedMetricsOpen, setAdvancedMetricsOpen] = useState(false);
+  const [selectedAdvancedAnalysis, setSelectedAdvancedAnalysis] = useState<EnhancedCryptoAnalysis | null>(null);
 
   const loadMexcCount = useCallback(async () => {
     try {
@@ -255,12 +253,16 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
 
   const getMarketCycleColor = (position: string) => {
     switch (position) {
-      case 'ACCUMULATION': return theme.palette.info.main;
-      case 'MARKUP': return theme.palette.success.main;
-      case 'DISTRIBUTION': return theme.palette.warning.main;
-      case 'MARKDOWN': return theme.palette.error.main;
-      default: return theme.palette.grey[500];
+      case 'ACCUMULATION': return theme.palette.success.main;
+      case 'DISTRIBUTION': return theme.palette.error.main;
+      default: return theme.palette.text.secondary;
     }
+  };
+
+  const getPercentageColor = (value: number) => {
+    if (value > 0) return theme.palette.success.main;
+    if (value < 0) return theme.palette.error.main;
+    return theme.palette.text.secondary;
   };
 
   // Function to generate MEXC exchange URL for a coin
@@ -275,6 +277,16 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     event.stopPropagation();
     const mexcUrl = getMEXCUrl(analysis.coin.symbol);
     window.open(mexcUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleAdvancedMetricsOpen = (analysis: EnhancedCryptoAnalysis) => {
+    setSelectedAdvancedAnalysis(analysis);
+    setAdvancedMetricsOpen(true);
+  };
+
+  const handleAdvancedMetricsClose = () => {
+    setAdvancedMetricsOpen(false);
+    setSelectedAdvancedAnalysis(null);
   };
 
   if (loading) {
@@ -597,10 +609,8 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   boxShadow: '0px 1px 3px 0px rgba(0, 0, 0, 0.3), 0px 4px 8px 3px rgba(0, 0, 0, 0.15)',
                 },
                 height: '100%',
-                border: index < 5 ? `2px solid ${getRecommendationColor(analysis.recommendation)}` : 'none',
-                backgroundColor: index < 5 
-                  ? `${getRecommendationColor(analysis.recommendation)}10`
-                  : theme.palette.background.paper,
+                border: `2px solid ${getRecommendationColor(analysis.recommendation)}`,
+                backgroundColor: `${getRecommendationColor(analysis.recommendation)}10`,
                 borderRadius: 3,
               }}
               onClick={() => handleCoinClick(analysis.coin.id, analysis.coin.source_url)}
@@ -612,9 +622,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                     label={`#${index + 1}`}
                     size="medium"
                     sx={{
-                      backgroundColor: index < 5 
-                        ? getRecommendationColor(analysis.recommendation)
-                        : theme.palette.grey[400],
+                      backgroundColor: getRecommendationColor(analysis.recommendation),
                       color: 'white',
                       fontWeight: 700,
                       fontSize: '0.875rem',
@@ -622,12 +630,8 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                       height: 32,
                       minWidth: 48,
                       borderRadius: 2,
-                      boxShadow: index < 5 
-                        ? '0 2px 8px rgba(0,0,0,0.15)' 
-                        : '0 1px 4px rgba(0,0,0,0.1)',
-                      border: index < 5 
-                        ? '2px solid rgba(255,255,255,0.2)' 
-                        : 'none',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      border: '2px solid rgba(255,255,255,0.2)',
                       '& .MuiChip-label': {
                         px: 1.5,
                         fontFamily: 'monospace',
@@ -906,136 +910,35 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   </Box>
                 )}
 
-                {/* Expandable Advanced Details */}
-                <Accordion 
-                  expanded={expandedCard === analysis.coin.id}
-                  onChange={() => setExpandedCard(expandedCard === analysis.coin.id ? null : analysis.coin.id)}
-                  sx={{ boxShadow: 'none', '&:before': { display: 'none' } }}
+                {/* Advanced Metrics Button */}
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAdvancedMetricsOpen(analysis);
+                  }}
+                  startIcon={<InfoIcon />}
+                  sx={{
+                    mt: 1,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    height: 36,
+                    background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)',
+                    color: 'white',
+                    border: 'none',
+                    '&:hover': {
+                      background: 'linear-gradient(45deg, #7B1FA2 30%, #C2185B 90%)',
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 4px 12px rgba(156, 39, 176, 0.3)',
+                    },
+                    transition: 'all 0.2s ease-in-out',
+                  }}
                 >
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 'auto' }}>
-                    <Typography variant="body2" color="primary" sx={{ fontSize: '0.75rem' }}>
-                      Advanced Metrics
-                    </Typography>
-                  </AccordionSummary>
-                  <AccordionDetails sx={{ px: 0, pt: 0 }}>
-                    {/* Multi-timeframe Predictions */}
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontSize: '0.85rem', fontWeight: 600, mb: 1.5 }}>
-                      Multi-timeframe Predictions
-                    </Typography>
-                    <Box sx={{ mb: 3 }}>
-                      {Object.entries(analysis.predictions).map(([timeframe, value]) => (
-                        <Box 
-                          key={timeframe} 
-                          sx={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center',
-                            p: 1.5, 
-                            mb: 1,
-                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', 
-                            borderRadius: 2,
-                            border: `1px solid ${theme.palette.divider}`,
-                            '&:hover': {
-                              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-                            }
-                          }}
-                        >
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontWeight: 500,
-                              color: theme.palette.text.primary,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}
-                          >
-                            {timeframe}
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography
-                              variant="body1"
-                              sx={{ 
-                                fontWeight: 700,
-                                fontSize: '1rem',
-                                color: getPercentageColor(value)
-                              }}
-                            >
-                              {value > 0 ? '+' : ''}{value.toFixed(1)}%
-                            </Typography>
-                            {value > 0 ? (
-                              <TrendingUpIcon sx={{ fontSize: '1rem', color: getPercentageColor(value) }} />
-                            ) : value < 0 ? (
-                              <TrendingDownIcon sx={{ fontSize: '1rem', color: getPercentageColor(value) }} />
-                            ) : null}
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
-
-                    {/* Technical Confidence */}
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontSize: '0.8rem' }}>
-                      Technical Indicators
-                    </Typography>
-                    <Box sx={{ mb: 2 }}>
-                      {Object.entries(analysis.technicalConfidence).map(([indicator, confidence]) => (
-                        <Box key={indicator} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                            {indicator.replace(/([A-Z])/g, ' $1').trim()}
-                          </Typography>
-                          <Typography variant="caption" fontWeight="bold">
-                            {confidence.toFixed(0)}%
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-
-                    {/* Advanced Metrics */}
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontSize: '0.8rem' }}>
-                      Advanced Metrics
-                    </Typography>
-                    <Box sx={{ mb: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption">Liquidity Score</Typography>
-                        <Typography variant="caption" fontWeight="bold">
-                          {analysis.liquidityScore.toFixed(0)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption">Volatility Risk</Typography>
-                        <Typography variant="caption" fontWeight="bold">
-                          {analysis.volatilityRisk.toFixed(0)}%
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption">Market Cycle</Typography>
-                        <Typography variant="caption" fontWeight="bold">
-                          {analysis.marketCyclePosition}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    {/* Compact Prediction Accuracy */}
-                    <Box sx={{ mb: 2 }}>
-                      <PredictionAccuracyDisplay 
-                        coinId={analysis.coin.id}
-                        coinSymbol={analysis.coin.symbol}
-                        compact={true}
-                      />
-                    </Box>
-
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewDetails(analysis);
-                      }}
-                    >
-                      Full Analysis
-                    </Button>
-                  </AccordionDetails>
-                </Accordion>
+                  Advanced Metrics
+                </Button>
               </CardContent>
             </Card>
           </Grid>
@@ -1190,6 +1093,187 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                 }}
               >
                 View Coin Details
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Advanced Metrics Dialog */}
+      <Dialog
+        open={advancedMetricsOpen}
+        onClose={handleAdvancedMetricsClose}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: { minHeight: '60vh' }
+        }}
+      >
+        {selectedAdvancedAnalysis && (
+          <>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar
+                  src={selectedAdvancedAnalysis.coin.image}
+                  alt={selectedAdvancedAnalysis.coin.name}
+                  sx={{ width: 40, height: 40 }}
+                />
+                <Box>
+                  <Typography variant="h6">
+                    {selectedAdvancedAnalysis.coin.name} - Advanced Metrics
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedAdvancedAnalysis.coin.symbol.toUpperCase()} • Detailed Technical Analysis
+                  </Typography>
+                </Box>
+              </Box>
+              <IconButton onClick={handleAdvancedMetricsClose}>
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent>
+              <Grid container spacing={3}>
+                {/* Multi-timeframe Predictions */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TrendingUpIcon color="primary" />
+                    Multi-timeframe Predictions
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {Object.entries(selectedAdvancedAnalysis.predictions).map(([timeframe, value]) => (
+                      <Grid item xs={12} sm={6} md={4} key={timeframe}>
+                        <Box 
+                          sx={{ 
+                            p: 2,
+                            border: `2px solid ${getPercentageColor(value)}`,
+                            borderRadius: 2,
+                            backgroundColor: `${getPercentageColor(value)}10`,
+                            textAlign: 'center'
+                          }}
+                        >
+                          <Typography 
+                            variant="subtitle1" 
+                            sx={{ 
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              mb: 1
+                            }}
+                          >
+                            {timeframe}
+                          </Typography>
+                          <Typography
+                            variant="h5"
+                            sx={{ 
+                              fontWeight: 700,
+                              color: getPercentageColor(value)
+                            }}
+                          >
+                            {value > 0 ? '+' : ''}{value.toFixed(1)}%
+                          </Typography>
+                          {value > 0 ? (
+                            <TrendingUpIcon sx={{ fontSize: '1.5rem', color: getPercentageColor(value), mt: 1 }} />
+                          ) : value < 0 ? (
+                            <TrendingDownIcon sx={{ fontSize: '1.5rem', color: getPercentageColor(value), mt: 1 }} />
+                          ) : null}
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Grid>
+
+                {/* Technical Indicators */}
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SmartToyIcon color="primary" />
+                    Technical Indicators
+                  </Typography>
+                  <Box sx={{ space: 2 }}>
+                    {Object.entries(selectedAdvancedAnalysis.technicalConfidence).map(([indicator, confidence]) => (
+                      <Box key={indicator} sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                            {indicator.replace(/([A-Z])/g, ' $1').trim()}
+                          </Typography>
+                          <Typography variant="h6" color="primary">
+                            {confidence.toFixed(0)}%
+                          </Typography>
+                        </Box>
+                        <LinearProgress
+                          variant="determinate"
+                          value={confidence}
+                          sx={{ height: 6, borderRadius: 3 }}
+                        />
+                      </Box>
+                    ))}
+                  </Box>
+                </Grid>
+
+                {/* Advanced Metrics */}
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <InfoIcon color="primary" />
+                    Advanced Metrics
+                  </Typography>
+                  <Box sx={{ space: 2 }}>
+                    <Box sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Liquidity Score</Typography>
+                      <Typography variant="h5" color="primary">
+                        {selectedAdvancedAnalysis.liquidityScore.toFixed(0)}
+                      </Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={selectedAdvancedAnalysis.liquidityScore}
+                        sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Volatility Risk</Typography>
+                      <Typography variant="h5" color="error">
+                        {selectedAdvancedAnalysis.volatilityRisk.toFixed(0)}%
+                      </Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={selectedAdvancedAnalysis.volatilityRisk}
+                        color="error"
+                        sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Market Cycle</Typography>
+                      <Typography variant="h6" color={getMarketCycleColor(selectedAdvancedAnalysis.marketCyclePosition)}>
+                        {selectedAdvancedAnalysis.marketCyclePosition}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+
+                {/* Prediction Accuracy */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <StarIcon color="warning" />
+                    Prediction Accuracy
+                  </Typography>
+                  <PredictionAccuracyDisplay 
+                    coinId={selectedAdvancedAnalysis.coin.id}
+                    coinSymbol={selectedAdvancedAnalysis.coin.symbol}
+                    compact={false}
+                  />
+                </Grid>
+              </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleAdvancedMetricsClose}>Close</Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  handleViewDetails(selectedAdvancedAnalysis);
+                  handleAdvancedMetricsClose();
+                }}
+              >
+                Full Analysis
               </Button>
             </DialogActions>
           </>
