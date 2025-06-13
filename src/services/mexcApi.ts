@@ -554,8 +554,8 @@ class MEXCApiService {
       
       // Apply additional filters: volume and price stability
       const filteredCoins = mexcCoins.filter(coin => {
-        // Volume filter - reduced from $10k to $1k for more coins
-        if (coin.total_volume <= 1000) {
+        // Volume filter - reduced to $500 for more coins
+        if (coin.total_volume <= 500) {
           return false;
         }
         

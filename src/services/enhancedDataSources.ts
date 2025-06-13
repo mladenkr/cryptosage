@@ -340,7 +340,7 @@ export class EnhancedDataSources {
     }
     
     // Very low minimum volume threshold to allow more coins
-    const minVolume = 5000; // Only $5k minimum volume
+    const minVolume = 1000; // Only $1k minimum volume
     if (coin.total_volume < minVolume) {
       console.log(`Filtered out ${coin.symbol}: volume too low ($${coin.total_volume.toLocaleString()} < $${minVolume.toLocaleString()})`);
       return false;
@@ -722,8 +722,8 @@ export class EnhancedDataSources {
       console.log(`  ✅ Valid for analysis: ${validCount}`);
       console.log(`  ❌ Filtered out: ${filteredCount}`);
       
-      // Ensure we have at least 200 coins by adding more based on volume
-      const minCoins = 200;
+      // Ensure we have at least 300 coins by adding more based on volume
+      const minCoins = 300;
       const finalCoins = await this.ensureMinimumCoins(validCoins, enhancedCoins, minCoins);
       
       console.log(`📊 Final MEXC Primary Results:`);

@@ -34,8 +34,8 @@ export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
 }
 
 export class EnhancedAIAnalysis {
-  private readonly BATCH_SIZE = 12; // Optimized for MEXC API rate limits
-  private readonly MAX_COINS_TO_ANALYZE = 150; // Increased to get more coins after filtering
+  private readonly BATCH_SIZE = 15; // Increased batch size for better throughput
+  private readonly MAX_COINS_TO_ANALYZE = 500; // Significantly increased to analyze more coins
   
   // Calculate technical confidence scores
   private calculateTechnicalConfidence(analysis: CryptoAnalysis): {
@@ -399,15 +399,15 @@ export class EnhancedAIAnalysis {
         try {
           const analysis = await this.analyzeEnhancedCoin(coin);
           if (analysis) {
-            // FILTER OUT COINS WITH 0% OR VERY LOW PREDICTIONS
+            // FILTER OUT COINS WITH 0% OR VERY LOW PREDICTIONS (reduced threshold)
             const prediction1h = Math.abs(analysis.predictions['1h']);
-            if (prediction1h < 0.05) {
+            if (prediction1h < 0.01) {
               console.log(`🚫 FILTERED OUT ${coin.symbol.toUpperCase()}: Prediction too low (${analysis.predictions['1h'].toFixed(2)}%)`);
               continue;
             }
             
-            // FILTER OUT COINS WITH VERY LOW TECHNICAL SCORES
-            if (analysis.technicalScore < 30) {
+            // FILTER OUT COINS WITH VERY LOW TECHNICAL SCORES (reduced threshold)
+            if (analysis.technicalScore < 15) {
               console.log(`🚫 FILTERED OUT ${coin.symbol.toUpperCase()}: Technical score too low (${analysis.technicalScore.toFixed(1)})`);
               continue;
             }
@@ -426,7 +426,7 @@ export class EnhancedAIAnalysis {
       }
       
       // Break if we have enough analyses (but aim for more to account for filtering)
-      if (analyses.length >= limit * 2) break;
+      if (analyses.length >= limit * 4) break;
     }
     
     console.log(`📊 Generated ${analyses.length} valid analyses (after filtering out low predictions)`);
