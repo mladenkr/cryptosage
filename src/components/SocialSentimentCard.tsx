@@ -15,7 +15,7 @@ import {
   Twitter as TwitterIcon,
   Reddit as RedditIcon,
   Telegram as TelegramIcon,
-  Discord as DiscordIcon,
+  Forum as DiscordIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   TrendingFlat as TrendingFlatIcon,
@@ -231,7 +231,7 @@ const SocialSentimentCard: React.FC<SocialSentimentCardProps> = ({
           </Grid>
           <Grid item xs={6} sm={3}>
             <Box sx={{ display: 'flex', alignItems: 'center', p: 1, backgroundColor: theme.palette.background.paper, borderRadius: 1 }}>
-              <DiscordIcon sx={{ mr: 1, color: '#7289DA' }} />
+              <DiscordIcon sx={{ mr: 1, color: '#5865F2' }} />
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {formatNumber(socialBuzz.discord.message_volume_24h)}
