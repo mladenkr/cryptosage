@@ -259,11 +259,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
     }
   };
 
-  const getPercentageColor = (value: number) => {
-    if (value > 0) return theme.palette.success.main;
-    if (value < 0) return theme.palette.error.main;
-    return theme.palette.text.secondary;
-  };
+
 
   // Function to generate MEXC exchange URL for a coin
   const getMEXCUrl = (symbol: string): string => {
