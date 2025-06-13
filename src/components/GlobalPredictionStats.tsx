@@ -74,7 +74,7 @@ const GlobalPredictionStats: React.FC = () => {
             <Alert severity="info">
               <Typography variant="body2">
                 Prediction accuracy tracking will begin after the first set of AI recommendations.
-                Check back in 24 hours to see how our AI predictions performed!
+                Check back in 1 hour to see how our AI predictions performed!
               </Typography>
             </Alert>
           </CardContent>
