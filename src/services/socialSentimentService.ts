@@ -1,4 +1,4 @@
-import { SentimentData, SocialMetrics } from '../types';
+// Social sentiment service for real-time data collection
 
 // Social sentiment data interfaces
 export interface TwitterSentimentData {

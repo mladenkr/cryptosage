@@ -5,7 +5,6 @@ import {
   Typography,
   Box,
   Chip,
-  LinearProgress,
   Grid,
   Tooltip,
   IconButton,
