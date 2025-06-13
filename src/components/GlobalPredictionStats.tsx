@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import { useTheme } from '../contexts/ThemeContext';
 import { predictionTracker, PredictionAccuracyStats } from '../services/predictionTracker';
+import { predictionDebug } from '../utils/predictionDebug';
 
 const GlobalPredictionStats: React.FC = () => {
   const { theme } = useTheme();
@@ -76,6 +77,44 @@ const GlobalPredictionStats: React.FC = () => {
                 Prediction accuracy tracking will begin after the first set of AI recommendations.
                 Check back in 1 hour to see how our AI predictions performed!
               </Typography>
+              {process.env.NODE_ENV === 'development' && (
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <button onClick={() => predictionDebug.checkState()}>Check State</button>
+                  <button onClick={() => predictionDebug.createTestPredictions()}>Create Test Data</button>
+                </Box>
+              )}
+            </Alert>
+          </CardContent>
+        </Card>
+      </Container>
+    );
+  }
+
+  // Show different message if predictions exist but no accuracy data yet
+  if (stats.totalPredictions > 0 && stats.completedPredictions === 0) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 0 }}>
+        <Card sx={{ mb: 3 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <PsychologyIcon sx={{ mr: 2, color: theme.palette.primary.main, fontSize: '1.5rem' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                AI Prediction Performance
+              </Typography>
+            </Box>
+            
+            <Alert severity="warning">
+              <Typography variant="body2">
+                We have {stats.totalPredictions} active predictions being tracked. 
+                Accuracy results will be available after at least 1 hour has passed since the predictions were made.
+              </Typography>
+              {process.env.NODE_ENV === 'development' && (
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <button onClick={() => predictionDebug.checkState()}>Check State</button>
+                  <button onClick={() => predictionDebug.manualUpdate()}>Manual Update</button>
+                  <button onClick={() => predictionDebug.createTestPredictions()}>Create Test Data</button>
+                </Box>
+              )}
             </Alert>
           </CardContent>
         </Card>

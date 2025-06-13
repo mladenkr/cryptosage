@@ -92,7 +92,14 @@ class PredictionTracker {
   private updateTimer: NodeJS.Timeout | null = null;
 
   constructor() {
+    console.log('📊 PredictionTracker initialized');
     this.startPeriodicUpdates();
+    
+    // Log current state on initialization
+    const records = this.getPredictionRecords();
+    const stats = this.getAccuracyStats();
+    console.log(`📊 Found ${records.length} existing prediction records`);
+    console.log(`📊 Stats available:`, !!stats);
   }
 
   // Save new predictions for tracking
@@ -133,6 +140,9 @@ class PredictionTracker {
       const allRecords = [...newRecords, ...existingRecords].slice(0, this.MAX_RECORDS);
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(allRecords));
+      
+      // Update stats immediately to show that predictions exist
+      this.updateAccuracyStats();
       
       console.log(`📊 Saved ${newRecords.length} new prediction records for tracking`);
     } catch (error) {
@@ -323,14 +333,11 @@ class PredictionTracker {
       const records = this.getPredictionRecords();
       const completedRecords = records.filter(record => record.overallAccuracy !== undefined);
       
-      if (completedRecords.length === 0) {
-        return;
-      }
-
       // Calculate overall stats
       const totalPredictions = records.length;
       const completedPredictions = completedRecords.length;
-      const averageAccuracy = completedRecords.reduce((sum, record) => sum + record.overallAccuracy!, 0) / completedRecords.length;
+      const averageAccuracy = completedRecords.length > 0 ? 
+        completedRecords.reduce((sum, record) => sum + record.overallAccuracy!, 0) / completedRecords.length : 0;
 
       // Calculate accuracy by timeframe
       const timeframes = ['1h', '4h', '24h', '7d'] as const;
@@ -362,10 +369,10 @@ class PredictionTracker {
 
       // Find best and worst performing timeframes
       const timeframeAccuracies = Object.entries(accuracyByTimeframe) as [string, number][];
-      const bestPerformingTimeframe = timeframeAccuracies.reduce((best, current) => 
-        current[1] > best[1] ? current : best)[0];
-      const worstPerformingTimeframe = timeframeAccuracies.reduce((worst, current) => 
-        current[1] < worst[1] ? current : worst)[0];
+      const bestPerformingTimeframe = timeframeAccuracies.length > 0 ? 
+        timeframeAccuracies.reduce((best, current) => current[1] > best[1] ? current : best)[0] : '1h';
+      const worstPerformingTimeframe = timeframeAccuracies.length > 0 ? 
+        timeframeAccuracies.reduce((worst, current) => current[1] < worst[1] ? current : worst)[0] : '1h';
 
       // Calculate recent trend (last 30 days vs previous 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
@@ -501,11 +508,17 @@ class PredictionTracker {
 
   // Start periodic updates
   private startPeriodicUpdates(): void {
-    // Update immediately
-    setTimeout(() => this.updatePredictionAccuracy(), 5000);
+    console.log('📊 Starting periodic prediction updates (every hour)');
+    
+    // Update immediately after 5 seconds
+    setTimeout(() => {
+      console.log('📊 Running initial prediction accuracy update');
+      this.updatePredictionAccuracy();
+    }, 5000);
     
     // Then update every hour
     this.updateTimer = setInterval(() => {
+      console.log('📊 Running scheduled prediction accuracy update');
       this.updatePredictionAccuracy();
     }, this.UPDATE_INTERVAL);
   }
@@ -516,6 +529,12 @@ class PredictionTracker {
       clearInterval(this.updateTimer);
       this.updateTimer = null;
     }
+  }
+
+  // Manually trigger prediction accuracy update (for testing/debugging)
+  async manualUpdate(): Promise<void> {
+    console.log('📊 Manual prediction accuracy update triggered');
+    await this.updatePredictionAccuracy();
   }
 
   // Clear all prediction data (for testing/reset)

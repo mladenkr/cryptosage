@@ -10,6 +10,7 @@ import CoinDetailPage from './components/CoinDetailPage';
 import InteractiveCharts from './components/InteractiveCharts';
 import SimpleTest from './components/SimpleTest';
 import Dashboard from './components/Dashboard';
+import './utils/predictionDebug'; // Import debug utilities
 
 // App content component that uses the theme
 const AppContent: React.FC = () => {
