@@ -44,6 +44,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { predictionTracker } from '../services/predictionTracker';
 import PredictionAccuracyDisplay from './PredictionAccuracyDisplay';
 import Sparkline from './Sparkline';
+import SocialSentimentCard from './SocialSentimentCard';
 import {
   formatCurrency,
   formatPercentage,
@@ -862,6 +863,29 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   </Typography>
                 </Box>
 
+                {/* Social Sentiment Indicator */}
+                {analysis.socialBuzz && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Social Buzz
+                    </Typography>
+                    <Chip
+                      label={`${analysis.socialBuzz.overall_buzz_score}/100`}
+                      size="small"
+                      sx={{
+                        backgroundColor: analysis.socialBuzz.sentiment_trend === 'BULLISH' ? 
+                          theme.palette.success.main : 
+                          analysis.socialBuzz.sentiment_trend === 'BEARISH' ? 
+                            theme.palette.error.main : 
+                            theme.palette.warning.main,
+                        color: 'white',
+                        fontSize: '0.7rem',
+                        height: 20,
+                      }}
+                    />
+                  </Box>
+                )}
+
                 {/* Market Cycle Position */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="caption" color="text.secondary">
@@ -978,6 +1002,16 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
               <PredictionAccuracyDisplay 
                 coinId={selectedAnalysis.coin.id}
                 coinSymbol={selectedAnalysis.coin.symbol}
+                compact={false}
+              />
+              
+              {/* Social Sentiment Analysis */}
+              <SocialSentimentCard
+                coinSymbol={selectedAnalysis.coin.symbol}
+                socialBuzz={selectedAnalysis.socialBuzz}
+                sentimentSignals={selectedAnalysis.sentimentSignals}
+                socialSentimentScore={selectedAnalysis.socialSentimentScore}
+                sentimentImpact={selectedAnalysis.sentimentImpact}
                 compact={false}
               />
               
@@ -1128,6 +1162,16 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
               </IconButton>
             </DialogTitle>
             <DialogContent>
+              {/* Social Sentiment Analysis */}
+              <SocialSentimentCard
+                coinSymbol={selectedAdvancedAnalysis.coin.symbol}
+                socialBuzz={selectedAdvancedAnalysis.socialBuzz}
+                sentimentSignals={selectedAdvancedAnalysis.sentimentSignals}
+                socialSentimentScore={selectedAdvancedAnalysis.socialSentimentScore}
+                sentimentImpact={selectedAdvancedAnalysis.sentimentImpact}
+                compact={true}
+              />
+              
               <Grid container spacing={3}>
                 {/* Multi-timeframe Predictions */}
                 <Grid item xs={12}>

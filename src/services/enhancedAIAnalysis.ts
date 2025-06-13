@@ -1,5 +1,6 @@
 import { CryptoAnalysis, cryptoAnalyzer } from './technicalAnalysis';
 import { EnhancedCoinData } from './enhancedDataSources';
+import { socialSentimentService, SocialBuzzMetrics, SentimentSignal } from './socialSentimentService';
 
 // Enhanced analysis with technical analysis focus
 export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
@@ -24,12 +25,22 @@ export interface EnhancedCryptoAnalysis extends CryptoAnalysis {
   riskFactors: string[];
   opportunityFactors: string[];
   
-  // Time-based predictions (based on technical analysis)
+  // Time-based predictions (based on technical analysis + social sentiment)
   predictions: {
     '1h': number;
     '4h': number;
     '24h': number;
     '7d': number;
+  };
+  
+  // Social sentiment data
+  socialBuzz: SocialBuzzMetrics | null;
+  sentimentSignals: SentimentSignal[];
+  socialSentimentScore: number; // 0-100
+  sentimentImpact: {
+    prediction_modifier: number;
+    confidence_boost: number;
+    risk_adjustment: number;
   };
 }
 
@@ -272,32 +283,70 @@ export class EnhancedAIAnalysis {
       // Perform technical analysis using the new system
       const technicalAnalysis = await cryptoAnalyzer.analyzeCoin(coin);
       
+      // Get social sentiment data
+      console.log(`🔍 Fetching social sentiment for ${coin.symbol.toUpperCase()}...`);
+      const socialBuzz = await socialSentimentService.getSocialBuzzMetrics(coin.symbol, coin.id);
+      const sentimentSignals = await socialSentimentService.getSentimentSignals(coin.symbol, coin.id);
+      
+      // Calculate social sentiment score
+      const socialSentimentScore = socialBuzz ? socialBuzz.overall_buzz_score : 50;
+      
+      // Calculate sentiment impact on predictions
+      const sentimentImpact = socialBuzz ? 
+        socialSentimentService.calculateSentimentImpact(socialBuzz) : 
+        { prediction_modifier: 0, confidence_boost: 0, risk_adjustment: 0 };
+      
       // Calculate enhanced metrics
       const technicalConfidence = this.calculateTechnicalConfidence(technicalAnalysis);
-    const liquidityScore = this.calculateLiquidityScore(coin);
-    const volatilityRisk = this.calculateVolatilityRisk(coin);
-    const marketCyclePosition = this.determineMarketCyclePosition(coin);
+      const liquidityScore = this.calculateLiquidityScore(coin);
+      const volatilityRisk = this.calculateVolatilityRisk(coin);
+      const marketCyclePosition = this.determineMarketCyclePosition(coin);
       
       // Calculate technical-based predictions
-      const predictions = this.calculateTechnicalPredictions(technicalAnalysis);
+      const basePredictions = this.calculateTechnicalPredictions(technicalAnalysis);
+      
+      // Apply social sentiment modifiers to predictions
+      const predictions = {
+        '1h': Math.max(-3, Math.min(3, basePredictions['1h'] + sentimentImpact.prediction_modifier)),
+        '4h': Math.max(-8, Math.min(8, basePredictions['4h'] + sentimentImpact.prediction_modifier * 2)),
+        '24h': Math.max(-15, Math.min(15, basePredictions['24h'] + sentimentImpact.prediction_modifier * 4)),
+        '7d': Math.max(-30, Math.min(30, basePredictions['7d'] + sentimentImpact.prediction_modifier * 8))
+      };
     
-    // Risk and opportunity analysis
+      // Risk and opportunity analysis
       const riskFactors = this.analyzeRiskFactors(coin, technicalAnalysis);
       const opportunityFactors = this.analyzeOpportunityFactors(coin, technicalAnalysis);
       
-      console.log(`✅ Enhanced technical analysis for ${coin.symbol}: ${predictions['1h'].toFixed(2)}% prediction`);
+      // Add social sentiment factors
+      if (socialBuzz) {
+        if (socialBuzz.sentiment_trend === 'BULLISH' && socialBuzz.overall_buzz_score > 70) {
+          opportunityFactors.push(`High social media buzz (${socialBuzz.overall_buzz_score}/100) with bullish sentiment`);
+        }
+        if (socialBuzz.sentiment_trend === 'BEARISH' && socialBuzz.overall_buzz_score > 60) {
+          riskFactors.push(`High social media buzz (${socialBuzz.overall_buzz_score}/100) with bearish sentiment`);
+        }
+        if (socialBuzz.twitter.influencer_mentions > 5) {
+          opportunityFactors.push(`${socialBuzz.twitter.influencer_mentions} crypto influencer mentions detected`);
+        }
+      }
+      
+      console.log(`✅ Enhanced analysis for ${coin.symbol}: ${predictions['1h'].toFixed(2)}% prediction (${sentimentImpact.prediction_modifier > 0 ? '+' : ''}${sentimentImpact.prediction_modifier.toFixed(2)}% sentiment boost)`);
     
-    return {
+      return {
         ...technicalAnalysis,
-      coin,
+        coin,
         technicalConfidence,
-      liquidityScore,
-      volatilityRisk,
-      marketCyclePosition,
-      riskFactors,
-      opportunityFactors,
-      predictions
-    };
+        liquidityScore,
+        volatilityRisk,
+        marketCyclePosition,
+        riskFactors,
+        opportunityFactors,
+        predictions,
+        socialBuzz,
+        sentimentSignals,
+        socialSentimentScore,
+        sentimentImpact
+      };
       
     } catch (error) {
       console.error(`❌ Failed to analyze ${coin.symbol}:`, error);
