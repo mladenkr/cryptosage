@@ -843,16 +843,16 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                 {/* Enhanced Predictions */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Typography variant="caption" color="text.secondary">
-                    24h Prediction
+                    1h Prediction
                   </Typography>
                   <Typography 
                     variant="caption" 
                     sx={{ 
                       fontWeight: 600,
-                      color: getPercentageColor(analysis.predictions['24h'])
+                      color: getPercentageColor(analysis.predictions['1h'])
                     }}
                   >
-                    {analysis.predictions['24h'] > 0 ? '+' : ''}{analysis.predictions['24h'].toFixed(1)}%
+                    {analysis.predictions['1h'] > 0 ? '+' : ''}{analysis.predictions['1h'].toFixed(1)}%
                   </Typography>
                 </Box>
 
@@ -1071,7 +1071,7 @@ const EnhancedAIRecommendations: React.FC<EnhancedAIRecommendationsProps> = ({ o
                   </Typography>
                   <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>24h Prediction:</strong> {selectedAnalysis.predictions['24h'] > 0 ? '+' : ''}{selectedAnalysis.predictions['24h'].toFixed(2)}%
+                      <strong>1h Prediction:</strong> {selectedAnalysis.predictions['1h'] > 0 ? '+' : ''}{selectedAnalysis.predictions['1h'].toFixed(2)}%
                     </Typography>
                     <Typography variant="body1" sx={{ mb: 1 }}>
                       <strong>Recommendation:</strong> {selectedAnalysis.recommendation}

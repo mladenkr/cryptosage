@@ -148,33 +148,24 @@ export class EnhancedAIAnalysis {
     const indicators = analysis.indicators;
     const multiTimeframe = analysis.multiTimeframe;
     
-    // Base prediction on 24h technical analysis
-    const base24hPrediction = analysis.predicted24hChange;
+    // Base prediction on 1h technical analysis
+    const base1hPrediction = analysis.predicted1hChange;
     
-    // 1-hour prediction (based on short-term indicators)
-    let prediction1h = 0;
+    // 1-hour prediction (primary prediction - use base prediction)
+    let prediction1h = base1hPrediction;
     
-    // RSI short-term signals
-    if (indicators.rsi < 30) prediction1h += 0.5;
-    else if (indicators.rsi > 70) prediction1h -= 0.3;
-    
-    // MACD short-term momentum
-    if (indicators.macd.histogram > 0) prediction1h += 0.3;
-    else prediction1h -= 0.3;
-    
-    // Stochastic short-term
-    if (indicators.stochastic.k < 20) prediction1h += 0.4;
-    else if (indicators.stochastic.k > 80) prediction1h -= 0.4;
-    
-    // 4-hour prediction (intermediate term)
-    let prediction4h = base24hPrediction * 0.3;
+    // 4-hour prediction (intermediate term - scale up from 1h)
+    let prediction4h = base1hPrediction * 2.5;
     
     // Add multi-timeframe influence
     if (multiTimeframe['1h'].trend === 'bullish') prediction4h += 0.5;
     else if (multiTimeframe['1h'].trend === 'bearish') prediction4h -= 0.5;
     
+    // 24-hour prediction (scale up from 1h)
+    let prediction24h = base1hPrediction * 8;
+    
     // 7-day prediction (longer term trend)
-    let prediction7d = base24hPrediction * 2;
+    let prediction7d = base1hPrediction * 20;
     
     // Weekly timeframe influence
     if (multiTimeframe['1w'].trend === 'bullish') prediction7d += 2;
@@ -186,10 +177,10 @@ export class EnhancedAIAnalysis {
     prediction7d += trendStrength * trendDirection * 3;
     
     return {
-      '1h': Math.max(-5, Math.min(5, prediction1h)),
+      '1h': Math.max(-3, Math.min(3, prediction1h)),
       '4h': Math.max(-8, Math.min(8, prediction4h)),
-      '24h': base24hPrediction,
-      '7d': Math.max(-20, Math.min(20, prediction7d))
+      '24h': Math.max(-15, Math.min(15, prediction24h)),
+      '7d': Math.max(-30, Math.min(30, prediction7d))
     };
   }
   
@@ -294,7 +285,7 @@ export class EnhancedAIAnalysis {
       const riskFactors = this.analyzeRiskFactors(coin, technicalAnalysis);
       const opportunityFactors = this.analyzeOpportunityFactors(coin, technicalAnalysis);
       
-      console.log(`✅ Enhanced technical analysis for ${coin.symbol}: ${predictions['24h'].toFixed(2)}% prediction`);
+      console.log(`✅ Enhanced technical analysis for ${coin.symbol}: ${predictions['1h'].toFixed(2)}% prediction`);
     
     return {
         ...technicalAnalysis,
@@ -409,9 +400,9 @@ export class EnhancedAIAnalysis {
           const analysis = await this.analyzeEnhancedCoin(coin);
           if (analysis) {
             // FILTER OUT COINS WITH 0% OR VERY LOW PREDICTIONS
-            const prediction24h = Math.abs(analysis.predictions['24h']);
-            if (prediction24h < 0.1) {
-              console.log(`🚫 FILTERED OUT ${coin.symbol.toUpperCase()}: Prediction too low (${analysis.predictions['24h'].toFixed(2)}%)`);
+            const prediction1h = Math.abs(analysis.predictions['1h']);
+            if (prediction1h < 0.05) {
+              console.log(`🚫 FILTERED OUT ${coin.symbol.toUpperCase()}: Prediction too low (${analysis.predictions['1h'].toFixed(2)}%)`);
               continue;
             }
             
@@ -422,7 +413,7 @@ export class EnhancedAIAnalysis {
             }
             
             analyses.push(analysis);
-            console.log(`✅ ADDED ${coin.symbol.toUpperCase()}: ${analysis.predictions['24h'].toFixed(2)}% prediction, ${analysis.technicalScore.toFixed(1)} tech score`);
+            console.log(`✅ ADDED ${coin.symbol.toUpperCase()}: ${analysis.predictions['1h'].toFixed(2)}% prediction, ${analysis.technicalScore.toFixed(1)} tech score`);
           }
         } catch (error) {
           console.warn(`⚠️ Skipped ${coin.symbol} due to analysis error:`, error);
@@ -444,8 +435,8 @@ export class EnhancedAIAnalysis {
     const sortedAnalyses = analyses.sort((a, b) => {
       // PRIMARY: Absolute prediction magnitude (higher absolute value is better)
       // This means -1% ranks higher than +0.9% because |-1| > |0.9|
-      const aPredictionMagnitude = Math.abs(a.predictions['24h']);
-      const bPredictionMagnitude = Math.abs(b.predictions['24h']);
+      const aPredictionMagnitude = Math.abs(a.predictions['1h']);
+      const bPredictionMagnitude = Math.abs(b.predictions['1h']);
       const predDiff = bPredictionMagnitude - aPredictionMagnitude;
       
       // If there's a significant difference in prediction magnitude, use that
@@ -467,13 +458,13 @@ export class EnhancedAIAnalysis {
     const topRecommendations = sortedAnalyses.slice(0, limit);
     
     console.log(`🎯 ENHANCED FILTERING: Final ${topRecommendations.length} recommendations (filtered from ${analyses.length} valid analyses):`);
-    console.log(`📊 RANKING BY: 1) Absolute 24h prediction magnitude, 2) Technical score, 3) Multi-timeframe confidence`);
+    console.log(`📊 RANKING BY: 1) Absolute 1h prediction magnitude, 2) Technical score, 3) Multi-timeframe confidence`);
     topRecommendations.slice(0, 15).forEach((analysis, index) => {
       const volume = analysis.coin.total_volume;
       const source = analysis.coin.price_source || 'CoinGecko';
-      const predictionMagnitude = Math.abs(analysis.predictions['24h']);
-      const predictionSign = analysis.predictions['24h'] >= 0 ? '+' : '';
-      console.log(`  ${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${predictionSign}${analysis.predictions['24h'].toFixed(2)}% (|${predictionMagnitude.toFixed(2)}%|, Tech: ${analysis.technicalScore.toFixed(1)}, ${analysis.recommendation}, Vol: $${volume.toLocaleString()}, Source: ${source})`);
+      const predictionMagnitude = Math.abs(analysis.predictions['1h']);
+      const predictionSign = analysis.predictions['1h'] >= 0 ? '+' : '';
+      console.log(`  ${index + 1}. ${analysis.coin.symbol.toUpperCase()}: ${predictionSign}${analysis.predictions['1h'].toFixed(2)}% (|${predictionMagnitude.toFixed(2)}%|, Tech: ${analysis.technicalScore.toFixed(1)}, ${analysis.recommendation}, Vol: $${volume.toLocaleString()}, Source: ${source})`);
     });
     
     console.log(`🚀 ENHANCED ANALYSIS: Successfully returning ${topRecommendations.length} high-quality recommendations`);

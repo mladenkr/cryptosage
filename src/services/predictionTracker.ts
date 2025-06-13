@@ -113,10 +113,10 @@ class PredictionTracker {
           predictionTimestamp: timestamp,
           originalPrice: analysis.coin.current_price,
           predictions: isEnhanced ? analysis.predictions : {
-            '1h': analysis.predicted24hChange / 24,
-            '4h': analysis.predicted24hChange / 6,
-            '24h': analysis.predicted24hChange,
-            '7d': analysis.predicted24hChange * 3
+            '1h': analysis.predicted1hChange,
+            '4h': analysis.predicted1hChange * 2.5,
+            '24h': analysis.predicted1hChange * 8,
+            '7d': analysis.predicted1hChange * 20
           },
           confidence: analysis.confidence,
           recommendation: analysis.recommendation,
@@ -245,8 +245,8 @@ class PredictionTracker {
           record.isComplete = true;
         }
 
-        // Calculate overall accuracy if we have at least 24h data
-        if (record.accuracyScores['24h'] !== undefined) {
+        // Calculate overall accuracy if we have at least 1h data
+        if (record.accuracyScores['1h'] !== undefined) {
           const scores = Object.values(record.accuracyScores).filter(score => score !== undefined) as number[];
           record.overallAccuracy = scores.reduce((sum, score) => sum + score, 0) / scores.length;
         }

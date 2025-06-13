@@ -75,7 +75,7 @@ The CryptoSage application has been completely transformed from a random-based p
 
 ### 📈 **Prediction Methodology**
 
-#### **24-Hour Predictions**
+#### **1-Hour Predictions**
 Based on weighted combination of:
 - RSI momentum signals (30% weight)
 - MACD crossover strength (25% weight)
@@ -84,9 +84,9 @@ Based on weighted combination of:
 - Multi-timeframe confirmation (10% weight)
 
 #### **Multi-Timeframe Predictions**
-- **1-hour**: Short-term indicator signals
+- **1-hour**: Primary prediction timeframe
 - **4-hour**: Intermediate trend analysis
-- **24-hour**: Primary prediction timeframe
+- **24-hour**: Extended trend projection
 - **7-day**: Long-term trend projection
 
 ### 🔍 **Analysis Process**

@@ -62,12 +62,12 @@ const AILogicDialog: React.FC<AILogicDialogProps> = ({ open, onClose, analysis }
 
 
 
-  const getRecommendationExplanation = (recommendation: string, predicted24hChange: number) => {
+  const getRecommendationExplanation = (recommendation: string, predicted1hChange: number) => {
     switch (recommendation) {
       case 'LONG':
-        return `AI predicts a ${predicted24hChange.toFixed(1)}% price increase in the next 24 hours based on bullish technical indicators and positive market momentum.`;
+        return `AI predicts a ${predicted1hChange.toFixed(1)}% price increase in the next hour based on bullish technical indicators and positive market momentum.`;
       case 'SHORT':
-        return `AI predicts a ${Math.abs(predicted24hChange).toFixed(1)}% price decrease in the next 24 hours based on bearish technical indicators and negative market momentum.`;
+        return `AI predicts a ${Math.abs(predicted1hChange).toFixed(1)}% price decrease in the next hour based on bearish technical indicators and negative market momentum.`;
       default:
         return 'AI analysis based on technical indicators and market data.';
     }
@@ -121,11 +121,11 @@ const AILogicDialog: React.FC<AILogicDialogProps> = ({ open, onClose, analysis }
                 }}
               />
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                {analysis.predicted24hChange > 0 ? '+' : ''}{analysis.predicted24hChange.toFixed(1)}% Predicted
+                {analysis.predicted1hChange > 0 ? '+' : ''}{analysis.predicted1hChange.toFixed(1)}% Predicted
               </Typography>
             </Box>
             <Typography variant="body2" color="text.secondary">
-              {getRecommendationExplanation(analysis.recommendation, analysis.predicted24hChange)}
+              {getRecommendationExplanation(analysis.recommendation, analysis.predicted1hChange)}
             </Typography>
           </CardContent>
         </Card>
@@ -239,7 +239,7 @@ const AILogicDialog: React.FC<AILogicDialogProps> = ({ open, onClose, analysis }
         </Typography>
         
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {getRecommendationExplanation(analysis.recommendation, analysis.predicted24hChange)}
+          {getRecommendationExplanation(analysis.recommendation, analysis.predicted1hChange)}
         </Typography>
 
         {/* Risk Assessment */}
@@ -590,8 +590,8 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
           <Grid container spacing={2}>
             {recommendations.map((analysis, index) => {
               // Debug logging for undefined values
-              if (analysis.predicted24hChange === undefined || analysis.predicted24hChange === null) {
-                console.warn('Missing predicted24hChange for coin:', analysis.coin.name, 'Value:', analysis.predicted24hChange, 'Full analysis:', analysis);
+              if (analysis.predicted1hChange === undefined || analysis.predicted1hChange === null) {
+                console.warn('Missing predicted1hChange for coin:', analysis.coin.name, 'Value:', analysis.predicted1hChange, 'Full analysis:', analysis);
               }
               if (analysis.overallScore === undefined || analysis.overallScore === null) {
                 console.warn('Missing overallScore for coin:', analysis.coin.name, 'Value:', analysis.overallScore, 'Full analysis:', analysis);
@@ -806,21 +806,21 @@ const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onCoinClick }) =>
                       />
                     </Box>
 
-                    {/* Predicted 24h Change */}
+                    {/* Predicted 1h Change */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="caption" color="text.secondary">
-                        24h Prediction
+                        1h Prediction
                       </Typography>
                       <Typography 
                         variant="caption" 
                         sx={{ 
                           fontWeight: 600,
-                          color: (analysis.predicted24hChange || 0) > 0 ? '#00A532' : 
-                                 (analysis.predicted24hChange || 0) < 0 ? '#F44336' : 
+                          color: (analysis.predicted1hChange || 0) > 0 ? '#00A532' : 
+                                 (analysis.predicted1hChange || 0) < 0 ? '#F44336' : 
                                  theme.palette.text.secondary
                         }}
                       >
-                        {(analysis.predicted24hChange || 0) > 0 ? '+' : ''}{(analysis.predicted24hChange || 0).toFixed(1)}%
+                        {(analysis.predicted1hChange || 0) > 0 ? '+' : ''}{(analysis.predicted1hChange || 0).toFixed(1)}%
                       </Typography>
                     </Box>
 

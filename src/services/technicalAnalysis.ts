@@ -92,7 +92,7 @@ export interface CryptoAnalysis {
   indicators: TechnicalIndicators;
   multiTimeframe: MultiTimeframeAnalysis;
   supportResistance: SupportResistanceLevel[];
-  predicted24hChange: number;
+  predicted1hChange: number;
   technicalScore: number;
   fundamentalScore: number;
   sentimentScore: number;
@@ -836,37 +836,37 @@ export class CryptoAnalyzer {
     };
   }
 
-  // Calculate predicted 24h change based on technical analysis
-  private calculatePredicted24hChange(indicators: TechnicalIndicators, multiTimeframe: MultiTimeframeAnalysis, supportResistance: SupportResistanceLevel[], currentPrice: number): number {
+  // Calculate predicted 1h change based on technical analysis
+  private calculatePredicted1hChange(indicators: TechnicalIndicators, multiTimeframe: MultiTimeframeAnalysis, supportResistance: SupportResistanceLevel[], currentPrice: number): number {
     let prediction = 0;
     let weight = 0;
     
-    // RSI contribution (more nuanced)
+    // RSI contribution (adjusted for 1-hour timeframe)
     if (indicators.rsi < 25) {
-      prediction += 4; // Extremely oversold
+      prediction += 1.0; // Extremely oversold (1h scale)
       weight += 1.5;
     } else if (indicators.rsi < 35) {
-      prediction += 2.5; // Oversold
+      prediction += 0.6; // Oversold (1h scale)
       weight += 1;
     } else if (indicators.rsi > 75) {
-      prediction -= 3; // Extremely overbought
+      prediction -= 0.8; // Extremely overbought (1h scale)
       weight += 1.5;
     } else if (indicators.rsi > 65) {
-      prediction -= 1.5; // Overbought
+      prediction -= 0.4; // Overbought (1h scale)
       weight += 1;
     } else {
       // Neutral RSI still contributes based on direction
-      prediction += (indicators.rsi - 50) * 0.05;
+      prediction += (indicators.rsi - 50) * 0.01;
       weight += 0.5;
     }
     
-    // MACD contribution (enhanced)
+    // MACD contribution (adjusted for 1-hour timeframe)
     const macdStrength = Math.abs(indicators.macd.histogram);
     if (indicators.macd.MACD > indicators.macd.signal) {
-      prediction += 1.5 + Math.min(macdStrength * 10, 2); // Bullish with strength
+      prediction += 0.4 + Math.min(macdStrength * 2, 0.5); // Bullish with strength (1h scale)
       weight += 1;
     } else {
-      prediction -= 1.5 + Math.min(macdStrength * 10, 2); // Bearish with strength
+      prediction -= 0.4 + Math.min(macdStrength * 2, 0.5); // Bearish with strength (1h scale)
       weight += 1;
     }
     
@@ -1031,7 +1031,7 @@ export class CryptoAnalyzer {
       weight += 0.5;
     }
     
-    return weight > 0 ? Math.max(-15, Math.min(15, prediction / weight)) : 0;
+    return weight > 0 ? Math.max(-3, Math.min(3, prediction / weight)) : 0;
   }
 
   // Advanced Pattern Analysis
@@ -1264,10 +1264,10 @@ export class CryptoAnalyzer {
   }
 
   // Get recommendation based on technical analysis
-  private getRecommendation(predicted24hChange: number, overallScore: number): 'LONG' | 'SHORT' {
+  private getRecommendation(predicted1hChange: number, overallScore: number): 'LONG' | 'SHORT' {
     // Simple binary classification: positive prediction = LONG, negative = SHORT
     // This ensures every coin gets a clear trading signal
-    if (predicted24hChange >= 0) {
+    if (predicted1hChange >= 0) {
       return 'LONG';
     } else {
       return 'SHORT';
@@ -1293,17 +1293,17 @@ export class CryptoAnalyzer {
   }
 
   // Calculate price target
-  private calculatePriceTarget(coin: Coin, supportResistance: SupportResistanceLevel[], predicted24hChange: number): number {
+  private calculatePriceTarget(coin: Coin, supportResistance: SupportResistanceLevel[], predicted1hChange: number): number {
     const currentPrice = coin.current_price;
     
     // Use nearest resistance/support as target
-    if (predicted24hChange > 0) {
+    if (predicted1hChange > 0) {
       const resistance = supportResistance
         .filter(sr => sr.type === 'resistance' && sr.price > currentPrice)
         .sort((a, b) => a.price - b.price)[0];
       
       if (resistance) {
-        return Math.min(resistance.price, currentPrice * (1 + predicted24hChange / 100));
+        return Math.min(resistance.price, currentPrice * (1 + predicted1hChange / 100));
       }
     } else {
       const support = supportResistance
@@ -1311,12 +1311,12 @@ export class CryptoAnalyzer {
         .sort((a, b) => b.price - a.price)[0];
       
       if (support) {
-        return Math.max(support.price, currentPrice * (1 + predicted24hChange / 100));
+        return Math.max(support.price, currentPrice * (1 + predicted1hChange / 100));
       }
     }
     
     // Fallback to percentage-based target
-    return currentPrice * (1 + predicted24hChange / 100);
+    return currentPrice * (1 + predicted1hChange / 100);
   }
 
   // Main analysis method
@@ -1349,7 +1349,7 @@ export class CryptoAnalyzer {
       );
       
       // Calculate prediction based on technical analysis
-      const predicted24hChange = this.calculatePredicted24hChange(
+      const predicted1hChange = this.calculatePredicted1hChange(
         indicators, 
         multiTimeframe, 
         supportResistance, 
@@ -1360,9 +1360,9 @@ export class CryptoAnalyzer {
       const signals = this.generateSignals(indicators, multiTimeframe, supportResistance, coin.current_price);
       
       // Get recommendation and risk assessment
-      const recommendation = this.getRecommendation(predicted24hChange, overallScore);
+      const recommendation = this.getRecommendation(predicted1hChange, overallScore);
       const riskLevel = this.getRiskLevel(coin, overallScore, indicators.atr);
-      const priceTarget = this.calculatePriceTarget(coin, supportResistance, predicted24hChange);
+      const priceTarget = this.calculatePriceTarget(coin, supportResistance, predicted1hChange);
       
       // Advanced analysis features
       const patternAnalysis = this.analyzePatterns(ohlcData, indicators);
@@ -1373,14 +1373,14 @@ export class CryptoAnalyzer {
       const dataQuality = ohlcData.length >= 30 ? 1 : 0.5;
       const confidence = Math.min(95, Math.max(60, overallScore * dataQuality + signalStrength * 2));
       
-      console.log(`Technical analysis complete for ${coin.symbol}: Score ${overallScore.toFixed(1)}, Prediction ${predicted24hChange.toFixed(2)}%`);
+      console.log(`Technical analysis complete for ${coin.symbol}: Score ${overallScore.toFixed(1)}, Prediction ${predicted1hChange.toFixed(2)}%`);
 
       return {
         coin,
         indicators,
         multiTimeframe,
         supportResistance,
-        predicted24hChange,
+        predicted1hChange,
         technicalScore,
         fundamentalScore,
         sentimentScore,
@@ -1435,7 +1435,7 @@ export class CryptoAnalyzer {
           try {
             const analysis = await this.analyzeCoin(coin);
               analyses.push(analysis);
-            console.log(`✅ ${coin.symbol}: ${analysis.predicted24hChange.toFixed(2)}% prediction, ${analysis.recommendation}`);
+            console.log(`✅ ${coin.symbol}: ${analysis.predicted1hChange.toFixed(2)}% prediction, ${analysis.recommendation}`);
           } catch (error: any) {
             console.warn(`❌ Failed to analyze ${coin.symbol}:`, error.message);
           }
@@ -1454,8 +1454,8 @@ export class CryptoAnalyzer {
       const sortedAnalyses = analyses.sort((a, b) => {
         // PRIMARY: Absolute prediction magnitude (higher absolute value is better)
         // This means -1% ranks higher than +0.9% because |-1| > |0.9|
-        const aPredictionMagnitude = Math.abs(a.predicted24hChange);
-        const bPredictionMagnitude = Math.abs(b.predicted24hChange);
+        const aPredictionMagnitude = Math.abs(a.predicted1hChange);
+        const bPredictionMagnitude = Math.abs(b.predicted1hChange);
         const predDiff = bPredictionMagnitude - aPredictionMagnitude;
         
         // If there's a significant difference in prediction magnitude, use that
@@ -1474,11 +1474,11 @@ export class CryptoAnalyzer {
       });
       
       console.log(`Generated ${sortedAnalyses.length} technical analyses`);
-      console.log(`📊 RANKING BY: 1) Absolute 24h prediction magnitude, 2) Technical score, 3) Overall score`);
+      console.log(`📊 RANKING BY: 1) Absolute 1h prediction magnitude, 2) Technical score, 3) Overall score`);
       console.log('Top 5 recommendations:', sortedAnalyses.slice(0, 5).map(a => {
-        const predictionMagnitude = Math.abs(a.predicted24hChange);
-        const predictionSign = a.predicted24hChange >= 0 ? '+' : '';
-        return `${a.coin.symbol}: ${predictionSign}${a.predicted24hChange.toFixed(2)}% (|${predictionMagnitude.toFixed(2)}%|, Tech: ${a.technicalScore.toFixed(1)}, ${a.recommendation})`;
+        const predictionMagnitude = Math.abs(a.predicted1hChange);
+        const predictionSign = a.predicted1hChange >= 0 ? '+' : '';
+        return `${a.coin.symbol}: ${predictionSign}${a.predicted1hChange.toFixed(2)}% (|${predictionMagnitude.toFixed(2)}%|, Tech: ${a.technicalScore.toFixed(1)}, ${a.recommendation})`;
       }));
       
       return sortedAnalyses.slice(0, 10);
