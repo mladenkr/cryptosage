@@ -51,7 +51,7 @@ const SocialSentimentCard: React.FC<SocialSentimentCardProps> = ({
   const { theme } = useTheme();
   const [expanded, setExpanded] = React.useState(false);
 
-  if (!socialBuzz) {
+  if (!socialBuzz || socialBuzz.overall_buzz_score === 0) {
     return (
       <Card sx={{ mb: 2, opacity: 0.7 }}>
         <CardContent sx={{ p: 2 }}>
@@ -62,7 +62,10 @@ const SocialSentimentCard: React.FC<SocialSentimentCardProps> = ({
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary">
-            Social sentiment data unavailable for {coinSymbol.toUpperCase()}
+            Real-time social sentiment data unavailable for {coinSymbol.toUpperCase()}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Only Reddit data is currently available. Twitter, Telegram, and Discord require paid API access.
           </Typography>
         </CardContent>
       </Card>

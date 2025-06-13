@@ -77,12 +77,20 @@ class SocialSentimentService {
         this.getDiscordSentiment(coinSymbol)
       ]);
 
-      const twitter = twitterData.status === 'fulfilled' ? twitterData.value : this.getDefaultTwitterData();
-      const reddit = redditData.status === 'fulfilled' ? redditData.value : this.getDefaultRedditData();
-      const telegram = telegramData.status === 'fulfilled' ? telegramData.value : this.getDefaultTelegramData();
-      const discord = discordData.status === 'fulfilled' ? discordData.value : this.getDefaultDiscordData();
+      const twitter = (twitterData.status === 'fulfilled' && twitterData.value) ? twitterData.value : this.getDefaultTwitterData();
+      const reddit = (redditData.status === 'fulfilled' && redditData.value) ? redditData.value : this.getDefaultRedditData();
+      const telegram = (telegramData.status === 'fulfilled' && telegramData.value) ? telegramData.value : this.getDefaultTelegramData();
+      const discord = (discordData.status === 'fulfilled' && discordData.value) ? discordData.value : this.getDefaultDiscordData();
 
-      // Calculate overall metrics
+      // Only proceed if we have real data (Reddit is the only real source currently)
+      const hasRealData = reddit.mentions_24h > 0;
+      
+      if (!hasRealData) {
+        console.log(`🚫 No real social sentiment data available for ${coinSymbol.toUpperCase()}`);
+        return null;
+      }
+
+      // Calculate overall metrics based only on real data
       const overallBuzzScore = this.calculateOverallBuzzScore(twitter, reddit, telegram, discord);
       const sentimentTrend = this.calculateSentimentTrend(twitter, reddit, telegram, discord);
       const momentumScore = this.calculateMomentumScore(twitter, reddit, telegram, discord);
@@ -100,7 +108,7 @@ class SocialSentimentService {
       this.sentimentCache.set(cacheKey, metrics);
       this.cacheTimestamp = now;
 
-      console.log(`✅ Social sentiment for ${coinSymbol.toUpperCase()}: Buzz ${overallBuzzScore}, Trend ${sentimentTrend}, Momentum ${momentumScore}`);
+      console.log(`✅ Real social sentiment for ${coinSymbol.toUpperCase()}: Reddit ${reddit.mentions_24h} posts, Buzz ${overallBuzzScore}, Trend ${sentimentTrend}`);
       return metrics;
 
     } catch (error) {
@@ -109,37 +117,11 @@ class SocialSentimentService {
     }
   }
 
-  private async getTwitterSentiment(coinSymbol: string): Promise<TwitterSentimentData> {
-    // In production, this would use Twitter API v2
-    // For now, we'll simulate realistic Twitter sentiment data based on market conditions
-    
-    try {
-      // Simulate Twitter API call with realistic data patterns
-      const baseVolume = Math.floor(Math.random() * 1000) + 100; // 100-1100 mentions
-      const sentimentVariation = (Math.random() - 0.5) * 100; // -50 to +50
-      const engagementBase = Math.random() * 0.1 + 0.02; // 2-12% engagement
-      
-      // Simulate trending hashtags based on coin
-      const trendingHashtags = this.generateTrendingHashtags(coinSymbol);
-      
-      // Simulate influencer mentions (0-10)
-      const influencerMentions = Math.floor(Math.random() * 11);
-      
-      // Volume change simulation
-      const volumeChange = (Math.random() - 0.5) * 200; // -100% to +100%
-
-      return {
-        mentions_24h: baseVolume,
-        sentiment_score: Math.max(-100, Math.min(100, sentimentVariation)),
-        engagement_rate: engagementBase,
-        trending_hashtags: trendingHashtags,
-        influencer_mentions: influencerMentions,
-        volume_change_24h: volumeChange
-      };
-    } catch (error) {
-      console.warn('Twitter sentiment simulation failed:', error);
-      return this.getDefaultTwitterData();
-    }
+  private async getTwitterSentiment(coinSymbol: string): Promise<TwitterSentimentData | null> {
+    // Twitter API v2 requires paid access for meaningful sentiment analysis
+    // Returning null to indicate no real Twitter data available
+    console.log(`🚫 Twitter sentiment disabled - no real API access for ${coinSymbol}`);
+    return null;
   }
 
   private async getRedditSentiment(coinSymbol: string): Promise<{
@@ -200,26 +182,20 @@ class SocialSentimentService {
     message_volume_24h: number;
     sentiment_score: number;
     active_groups: number;
-  }> {
-    // Telegram data simulation (would require Telegram Bot API in production)
-    return {
-      message_volume_24h: Math.floor(Math.random() * 500) + 100,
-      sentiment_score: (Math.random() - 0.5) * 60,
-      active_groups: Math.floor(Math.random() * 10) + 3
-    };
+  } | null> {
+    // Telegram Bot API requires bot setup and permissions - no real data available
+    console.log(`🚫 Telegram sentiment disabled - no real API access for ${coinSymbol}`);
+    return null;
   }
 
   private async getDiscordSentiment(coinSymbol: string): Promise<{
     message_volume_24h: number;
     sentiment_score: number;
     active_channels: number;
-  }> {
-    // Discord data simulation (would require Discord Bot API in production)
-    return {
-      message_volume_24h: Math.floor(Math.random() * 300) + 50,
-      sentiment_score: (Math.random() - 0.5) * 70,
-      active_channels: Math.floor(Math.random() * 8) + 2
-    };
+  } | null> {
+    // Discord Bot API requires bot setup and permissions - no real data available
+    console.log(`🚫 Discord sentiment disabled - no real API access for ${coinSymbol}`);
+    return null;
   }
 
   private generateTrendingHashtags(coinSymbol: string): string[] {
@@ -400,12 +376,12 @@ class SocialSentimentService {
     };
   }
 
-  // Default data for fallbacks
+  // Default data for fallbacks - all zeros to indicate no real data
   private getDefaultTwitterData(): TwitterSentimentData {
     return {
-      mentions_24h: 50,
+      mentions_24h: 0,
       sentiment_score: 0,
-      engagement_rate: 0.05,
+      engagement_rate: 0,
       trending_hashtags: [],
       influencer_mentions: 0,
       volume_change_24h: 0
@@ -414,26 +390,26 @@ class SocialSentimentService {
 
   private getDefaultRedditData() {
     return {
-      mentions_24h: 5,
+      mentions_24h: 0,
       sentiment_score: 0,
-      upvote_ratio: 0.7,
-      comment_volume: 25
+      upvote_ratio: 0,
+      comment_volume: 0
     };
   }
 
   private getDefaultTelegramData() {
     return {
-      message_volume_24h: 100,
+      message_volume_24h: 0,
       sentiment_score: 0,
-      active_groups: 3
+      active_groups: 0
     };
   }
 
   private getDefaultDiscordData() {
     return {
-      message_volume_24h: 75,
+      message_volume_24h: 0,
       sentiment_score: 0,
-      active_channels: 2
+      active_channels: 0
     };
   }
 
